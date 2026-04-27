@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retirement Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        h1, h3 {
+            color: #333;
+        }
+        form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        form div {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: #fff;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #results-container {
+            margin-top: 30px;
+        }
+        canvas {
+            margin-bottom: 30px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #results-table {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Retirement Calculator</h1>
+
+    <form id="simulation-form">
+        <div>
+            <label for="start_age">Start Age:</label>
+            <input type="number" id="start_age" value="65">
+        </div>
+        <div>
+            <label for="end_age">End Age:</label>
+            <input type="number" id="end_age" value="95">
+        </div>
+        <div>
+            <label for="spouse_death_age">Spouse Age at Death:</label>
+            <input type="number" id="spouse_death_age" value="85">
+        </div>
+        <div>
+            <label for="roth_balance">Initial Roth Balance:</label>
+            <input type="number" id="roth_balance" value="200000">
+        </div>
+        <div>
+            <label for="trad_balance">Initial Traditional (401k) Balance:</label>
+            <input type="number" id="trad_balance" value="500000">
+        </div>
+        <div>
+            <label for="ss_income">Annual Social Security Income:</label>
+            <input type="number" id="ss_income" value="40000">
+        </div>
+        <div>
+            <label for="growth_rate">Annual Growth Rate (%):</label>
+            <input type="number" id="growth_rate" step="0.1" value="5">
+        </div>
+        <div>
+            <label for="withdrawal_rate">Annual Withdrawal Rate (%):</label>
+            <input type="number" id="withdrawal_rate" step="0.1" value="4">
+        </div>
+
+        <h3>Tax Brackets (Married)</h3>
+        <table id="married-brackets">
+            <thead>
+                <tr>
+                    <th>Lower Bound</th>
+                    <th>Upper Bound</th>
+                    <th>Rate (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="number" value="0"></td>
+                    <td><input type="number" value="22000"></td>
+                    <td><input type="number" value="10"></td>
+                </tr>
+                <tr>
+                    <td><input type="number" value="22000"></td>
+                    <td><input type="number" value="89450"></td>
+                    <td><input type="number" value="12"></td>
+                </tr>
+                <tr>
+                    <td><input type="number" value="89450"></td>
+                    <td><input type="number" value="190750"></td>
+                    <td><input type="number" value="22"></td>
+                </tr>
+                <tr>
+                    <td><input type="number" value="190750"></td>
+                    <td><input type="number" value="364200"></td>
+                    <td><input type="number" value="24"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Tax Brackets (Single)</h3>
+        <table id="single-brackets">
+            <thead>
+                <tr>
+                    <th>Lower Bound</th>
+                    <th>Upper Bound</th>
+                    <th>Rate (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="number" value="0"></td>
+                    <td><input type="number" value="11000"></td>
+                    <td><input type="number" value="10"></td>
+                </tr>
+                <tr>
+                    <td><input type="number" value="11000"></td>
+                    <td><input type="number" value="44725"></td>
+                    <td><input type="number" value="12"></td>
+                </tr>
+                <tr>
+                    <td><input type="number" value="44725"></td>
+                    <td><input type="number" value="95375"></td>
+                    <td><input type="number" value="22"></td>
+                </tr>
+                <tr>
+                    <td><input type="number" value="95375"></td>
+                    <td><input type="number" value="182100"></td>
+                    <td><input type="number" value="24"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <button type="submit">Run Simulation</button>
+    </form>
+
+    <div id="results-container">
+        <canvas id="balanceChart"></canvas>
+        <table id="results-table">
+            <thead>
+                <tr>
+                    <th>Age</th>
+                    <th>Filing Status</th>
+                    <th>Roth Balance</th>
+                    <th>Traditional Balance</th>
+                    <th>Withdrawal</th>
+                    <th>Total Income</th>
+                    <th>Taxes</th>
+                    <th>Net Income</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        function calculateTax(income, brackets) {
+            let tax = 0;
+            for (const [lower, upper, rate] of brackets) {
+                if (income > lower) {
+                    const taxedAmount = Math.min(income, upper) - lower;
+                    tax += taxedAmount * rate;
+                } else {
+                    break;
+                }
+            }
+            return tax;
+        }
+
+        function getBracketsFromTable(tableId) {
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            const brackets = [];
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                const lower = parseFloat(inputs[0].value);
+                const upper = parseFloat(inputs[1].value);
+                const rate = parseFloat(inputs[2].value) / 100;
+                brackets.push([lower, upper, rate]);
+            });
+            return brackets;
+        }
+
+        let balanceChart = null;
+
+        function updateUI(results) {
+            const tableBody = document.querySelector('#results-table tbody');
+            tableBody.innerHTML = '';
+
+            const labels = [];
+            const rothData = [];
+            const tradData = [];
+
+            results.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.Age}</td>
+                    <td>${row.FilingStatus}</td>
+                    <td>${row.RothBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${row.TraditionalBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${row.Withdrawal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${row.TotalIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${row.Taxes.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${row.NetIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                `;
+                tableBody.appendChild(tr);
+
+                labels.push(row.Age);
+                rothData.push(row.RothBalance);
+                tradData.push(row.TraditionalBalance);
+            });
+
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            if (balanceChart) {
+                balanceChart.destroy();
+            }
+            balanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Roth Balance',
+                            data: rothData,
+                            borderColor: 'blue',
+                            fill: false
+                        },
+                        {
+                            label: 'Traditional Balance',
+                            data: tradData,
+                            borderColor: 'green',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    title: {
+                        display: true,
+                        text: 'Retirement Account Balances'
+                    }
+                }
+            });
+        }
+
+        document.getElementById('simulation-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const startAge = parseInt(document.getElementById('start_age').value);
+            const endAge = parseInt(document.getElementById('end_age').value);
+            const spouseDeathAge = parseInt(document.getElementById('spouse_death_age').value);
+            let rothBalance = parseFloat(document.getElementById('roth_balance').value);
+            let tradBalance = parseFloat(document.getElementById('trad_balance').value);
+            const ssIncome = parseFloat(document.getElementById('ss_income').value);
+            const growthRate = parseFloat(document.getElementById('growth_rate').value) / 100;
+            const withdrawalRate = parseFloat(document.getElementById('withdrawal_rate').value) / 100;
+
+            const marriedBrackets = getBracketsFromTable('married-brackets');
+            const singleBrackets = getBracketsFromTable('single-brackets');
+
+            const results = [];
+
+            for (let age = startAge; age <= endAge; age++) {
+                const filingStatus = age < spouseDeathAge ? "married" : "single";
+                const brackets = filingStatus === "married" ? marriedBrackets : singleBrackets;
+
+                // Grow accounts
+                rothBalance *= (1 + growthRate);
+                tradBalance *= (1 + growthRate);
+
+                // Withdraw from traditional
+                const withdrawal = tradBalance * withdrawalRate;
+                tradBalance -= withdrawal;
+
+                // Income
+                const totalIncome = ssIncome + withdrawal;
+
+                // Taxable income (simplified for now)
+                const taxableIncome = withdrawal;
+
+                const taxes = calculateTax(taxableIncome, brackets);
+                const netIncome = totalIncome - taxes;
+
+                results.push({
+                    Age: age,
+                    FilingStatus: filingStatus,
+                    RothBalance: rothBalance,
+                    TraditionalBalance: tradBalance,
+                    Withdrawal: withdrawal,
+                    TotalIncome: totalIncome,
+                    Taxes: taxes,
+                    NetIncome: netIncome
+                });
+            }
+
+            updateUI(results);
+        });
+    </script>
+</body>
+</html>
