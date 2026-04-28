@@ -12,7 +12,7 @@
             padding: 20px;
             background-color: #f4f4f9;
         }
-        h1, h3 {
+        h1, h2, h3 {
             color: #333;
         }
         form {
@@ -78,6 +78,25 @@
         #results-table {
             font-size: 14px;
         }
+        .comparison-summary {
+            display: flex;
+            justify-content: space-around;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-item h4 {
+            margin: 0 0 10px 0;
+        }
+        .summary-val {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -102,7 +121,7 @@
         </div>
         <div>
             <label for="trad_balance">Initial Traditional (401k) Balance:</label>
-            <input type="number" id="trad_balance" value="500000">
+            <input type="number" id="trad_balance" value="1500000">
         </div>
         <div>
             <label for="ss_income">Annual Social Security Income:</label>
@@ -114,7 +133,35 @@
         </div>
         <div>
             <label for="withdrawal_rate">Annual Withdrawal Rate (%):</label>
-            <input type="number" id="withdrawal_rate" step="0.1" value="4">
+            <input type="number" id="withdrawal_rate" step="0.1" value="6">
+        </div>
+
+        <h3>Standard Deduction</h3>
+        <div>
+            <label for="married_deduction">Married Deduction:</label>
+            <input type="number" id="married_deduction" value="29200">
+        </div>
+        <div>
+            <label for="single_deduction">Single Deduction:</label>
+            <input type="number" id="single_deduction" value="14600">
+        </div>
+
+        <h3>Social Security Thresholds</h3>
+        <div>
+            <label for="married_ss_t1">Married Threshold 1:</label>
+            <input type="number" id="married_ss_t1" value="32000">
+        </div>
+        <div>
+            <label for="married_ss_t2">Married Threshold 2:</label>
+            <input type="number" id="married_ss_t2" value="44000">
+        </div>
+        <div>
+            <label for="single_ss_t1">Single Threshold 1:</label>
+            <input type="number" id="single_ss_t1" value="25000">
+        </div>
+        <div>
+            <label for="single_ss_t2">Single Threshold 2:</label>
+            <input type="number" id="single_ss_t2" value="34000">
         </div>
 
         <h3>Tax Brackets (Married)</h3>
@@ -187,7 +234,23 @@
     </form>
 
     <div id="results-container">
+        <h2>Comparison Summary</h2>
+        <div class="comparison-summary">
+            <div class="summary-item">
+                <h4>Scenario A (Stop at 22%)</h4>
+                <p>Total Taxes: <span id="tax-a" class="summary-val">$0</span></p>
+                <p>Ending Balance: <span id="bal-a" class="summary-val">$0</span></p>
+            </div>
+            <div class="summary-item">
+                <h4>Scenario B (Go into 24%)</h4>
+                <p>Total Taxes: <span id="tax-b" class="summary-val">$0</span></p>
+                <p>Ending Balance: <span id="bal-b" class="summary-val">$0</span></p>
+            </div>
+        </div>
+
         <canvas id="balanceChart"></canvas>
+
+        <h3>Detailed View (Scenario A)</h3>
         <table id="results-table">
             <thead>
                 <tr>
@@ -220,6 +283,13 @@
             return tax;
         }
 
+        function calculateTaxableSS(withdrawal, ss_income, status, t1, t2) {
+            const provisional_income = withdrawal + 0.5 * ss_income;
+            if (provisional_income < t1) return 0;
+            if (provisional_income < t2) return 0.5 * ss_income;
+            return 0.85 * ss_income;
+        }
+
         function getBracketsFromTable(tableId) {
             const table = document.getElementById(tableId);
             const rows = table.querySelectorAll('tbody tr');
@@ -236,33 +306,38 @@
 
         let balanceChart = null;
 
-        function updateUI(results) {
+        function updateUI(resultsA, resultsB) {
+            // Update Summary
+            const totalTaxA = resultsA.reduce((sum, r) => sum + r.Taxes, 0);
+            const totalTaxB = resultsB.reduce((sum, r) => sum + r.Taxes, 0);
+            const endBalA = resultsA[resultsA.length - 1].RothBalance + resultsA[resultsA.length - 1].TraditionalBalance;
+            const endBalB = resultsB[resultsB.length - 1].RothBalance + resultsB[resultsB.length - 1].TraditionalBalance;
+
+            document.getElementById('tax-a').innerText = totalTaxA.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            document.getElementById('tax-b').innerText = totalTaxB.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            document.getElementById('bal-a').innerText = endBalA.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            document.getElementById('bal-b').innerText = endBalB.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+            // Update Table (Detailed Scenario A)
             const tableBody = document.querySelector('#results-table tbody');
             tableBody.innerHTML = '';
-
-            const labels = [];
-            const rothData = [];
-            const tradData = [];
-
-            results.forEach(row => {
+            resultsA.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${row.Age}</td>
                     <td>${row.FilingStatus}</td>
                     <td>${row.RothBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>${row.TraditionalBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td>${row.Withdrawal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${(row.WithdrawalTrad + row.WithdrawalRoth).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>${row.TotalIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>${row.Taxes.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>${row.NetIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 `;
                 tableBody.appendChild(tr);
-
-                labels.push(row.Age);
-                rothData.push(row.RothBalance);
-                tradData.push(row.TraditionalBalance);
             });
 
+            // Update Chart
+            const labels = resultsA.map(r => r.Age);
             const ctx = document.getElementById('balanceChart').getContext('2d');
             if (balanceChart) {
                 balanceChart.destroy();
@@ -273,65 +348,95 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Roth Balance',
-                            data: rothData,
+                            label: 'Roth (A)',
+                            data: resultsA.map(r => r.RothBalance),
                             borderColor: 'blue',
                             fill: false
                         },
                         {
-                            label: 'Traditional Balance',
-                            data: tradData,
+                            label: 'Trad (A)',
+                            data: resultsA.map(r => r.TraditionalBalance),
                             borderColor: 'green',
+                            fill: false
+                        },
+                        {
+                            label: 'Roth (B)',
+                            data: resultsB.map(r => r.RothBalance),
+                            borderColor: 'blue',
+                            borderDash: [5, 5],
+                            fill: false
+                        },
+                        {
+                            label: 'Trad (B)',
+                            data: resultsB.map(r => r.TraditionalBalance),
+                            borderColor: 'green',
+                            borderDash: [5, 5],
                             fill: false
                         }
                     ]
                 },
                 options: {
                     responsive: true,
-                    title: {
-                        display: true,
-                        text: 'Retirement Account Balances'
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Retirement Account Balances (Solid = Scenario A, Dashed = Scenario B)'
+                        }
                     }
                 }
             });
         }
 
-        document.getElementById('simulation-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const startAge = parseInt(document.getElementById('start_age').value);
-            const endAge = parseInt(document.getElementById('end_age').value);
-            const spouseDeathAge = parseInt(document.getElementById('spouse_death_age').value);
-            let rothBalance = parseFloat(document.getElementById('roth_balance').value);
-            let tradBalance = parseFloat(document.getElementById('trad_balance').value);
-            const ssIncome = parseFloat(document.getElementById('ss_income').value);
-            const growthRate = parseFloat(document.getElementById('growth_rate').value) / 100;
-            const withdrawalRate = parseFloat(document.getElementById('withdrawal_rate').value) / 100;
-
-            const marriedBrackets = getBracketsFromTable('married-brackets');
-            const singleBrackets = getBracketsFromTable('single-brackets');
-
+        function runSimulation(strategy, inputs) {
             const results = [];
+            let rothBalance = inputs.rothBalance;
+            let tradBalance = inputs.tradBalance;
 
-            for (let age = startAge; age <= endAge; age++) {
-                const filingStatus = age < spouseDeathAge ? "married" : "single";
-                const brackets = filingStatus === "married" ? marriedBrackets : singleBrackets;
+            for (let age = inputs.startAge; age <= inputs.endAge; age++) {
+                const filingStatus = age < inputs.spouseDeathAge ? "married" : "single";
+                const brackets = filingStatus === "married" ? inputs.marriedBrackets : inputs.singleBrackets;
+                const deduction = filingStatus === "married" ? inputs.marriedDeduction : inputs.singleDeduction;
+                const ssT1 = filingStatus === "married" ? inputs.marriedSST1 : inputs.singleSST1;
+                const ssT2 = filingStatus === "married" ? inputs.marriedSST2 : inputs.singleSST2;
 
-                // Grow accounts
-                rothBalance *= (1 + growthRate);
-                tradBalance *= (1 + growthRate);
+                const limit22 = brackets.length > 2 ? brackets[2][1] : 999999999;
 
-                // Withdraw from traditional
-                const withdrawal = tradBalance * withdrawalRate;
-                tradBalance -= withdrawal;
+                rothBalance *= (1 + inputs.growthRate);
+                tradBalance *= (1 + inputs.growthRate);
 
-                // Income
-                const totalIncome = ssIncome + withdrawal;
+                const targetWithdrawal = tradBalance * inputs.withdrawalRate;
+                let withdrawalTrad = 0;
+                let withdrawalRoth = 0;
 
-                // Taxable income (simplified for now)
-                const taxableIncome = withdrawal;
+                if (strategy === 'B') {
+                    withdrawalTrad = Math.min(targetWithdrawal, tradBalance);
+                    tradBalance -= withdrawalTrad;
+                } else {
+                    // Strategy A: binary search
+                    let low = 0;
+                    let high = targetWithdrawal;
+                    let bestTrad = 0;
+                    for (let i = 0; i < 20; i++) {
+                        let mid = (low + high) / 2;
+                        let taxableSS = calculateTaxableSS(mid, inputs.ssIncome, filingStatus, ssT1, ssT2);
+                        let taxableIncome = Math.max(0, mid + taxableSS - deduction);
+                        if (taxableIncome <= limit22) {
+                            bestTrad = mid;
+                            low = mid;
+                        } else {
+                            high = mid;
+                        }
+                    }
+                    withdrawalTrad = Math.min(bestTrad, tradBalance);
+                    tradBalance -= withdrawalTrad;
+                    withdrawalRoth = Math.min(targetWithdrawal - withdrawalTrad, rothBalance);
+                    rothBalance -= withdrawalRoth;
+                }
 
+                const taxableSS = calculateTaxableSS(withdrawalTrad, inputs.ssIncome, filingStatus, ssT1, ssT2);
+                const taxableIncome = Math.max(0, withdrawalTrad + taxableSS - deduction);
                 const taxes = calculateTax(taxableIncome, brackets);
+                const totalIncome = inputs.ssIncome + withdrawalTrad + withdrawalRoth;
                 const netIncome = totalIncome - taxes;
 
                 results.push({
@@ -339,14 +444,42 @@
                     FilingStatus: filingStatus,
                     RothBalance: rothBalance,
                     TraditionalBalance: tradBalance,
-                    Withdrawal: withdrawal,
+                    WithdrawalTrad: withdrawalTrad,
+                    WithdrawalRoth: withdrawalRoth,
                     TotalIncome: totalIncome,
                     Taxes: taxes,
                     NetIncome: netIncome
                 });
             }
+            return results;
+        }
 
-            updateUI(results);
+        document.getElementById('simulation-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const inputs = {
+                startAge: parseInt(document.getElementById('start_age').value),
+                endAge: parseInt(document.getElementById('end_age').value),
+                spouseDeathAge: parseInt(document.getElementById('spouse_death_age').value),
+                rothBalance: parseFloat(document.getElementById('roth_balance').value),
+                tradBalance: parseFloat(document.getElementById('trad_balance').value),
+                ssIncome: parseFloat(document.getElementById('ss_income').value),
+                growthRate: parseFloat(document.getElementById('growth_rate').value) / 100,
+                withdrawalRate: parseFloat(document.getElementById('withdrawal_rate').value) / 100,
+                marriedBrackets: getBracketsFromTable('married-brackets'),
+                singleBrackets: getBracketsFromTable('single-brackets'),
+                marriedDeduction: parseFloat(document.getElementById('married_deduction').value),
+                singleDeduction: parseFloat(document.getElementById('single_deduction').value),
+                marriedSST1: parseFloat(document.getElementById('married_ss_t1').value),
+                marriedSST2: parseFloat(document.getElementById('married_ss_t2').value),
+                singleSST1: parseFloat(document.getElementById('single_ss_t1').value),
+                singleSST2: parseFloat(document.getElementById('single_ss_t2').value),
+            };
+
+            const resultsA = runSimulation('A', inputs);
+            const resultsB = runSimulation('B', inputs);
+
+            updateUI(resultsA, resultsB);
         });
     </script>
 </body>
