@@ -91,9 +91,13 @@ def simulate_retirement(
         actual_withdrawal_roth = 0
 
         if strategy == "B":
-            # Just take it all from Traditional if possible
+            # Strategy B: Traditional first, then Roth
             actual_withdrawal_trad = min(target_withdrawal, trad_balance)
             trad_balance -= actual_withdrawal_trad
+
+            remainder = target_withdrawal - actual_withdrawal_trad
+            actual_withdrawal_roth = min(remainder, roth_balance)
+            roth_balance -= actual_withdrawal_roth
         else:
             # Strategy A: Stop at 22% bracket
             # We need to find max W_trad such that:

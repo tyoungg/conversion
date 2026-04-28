@@ -18,9 +18,9 @@ test('Retirement calculator simulation runs and displays comparison results', as
   await page.fill('#growth_rate', '5');
   await page.fill('#withdrawal_rate', '6');
 
-  // Verify new fields
-  await expect(page.locator('#married_deduction')).toHaveValue('29200');
-  await expect(page.locator('#married_ss_t1')).toHaveValue('32000');
+  // Verify new fields (now formatted with commas)
+  await expect(page.locator('#married_deduction')).toHaveValue('29,200');
+  await expect(page.locator('#married_ss_t1')).toHaveValue('32,000');
 
   // Run simulation
   await page.click('button[type="submit"]');
