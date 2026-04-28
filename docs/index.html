@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retirement Tax Conversion Strategy Simulator</title>
+    <script defer src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            padding: 40px;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .form-section h2 {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        .section-divider {
+            border-top: 2px solid #ddd;
+            margin: 30px 0;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            border-left: 4px solid #764ba2;
+        }
+
+        .results-section h2 {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 1.5em;
+        }
+
+        .results-hidden {
+            display: none;
+        }
+
+        .comparison-box {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .comparison-box.scenario-b {
+            border-left-color: #764ba2;
+        }
+
+        .comparison-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.95em;
+        }
+
+        .result-row:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .result-value {
+            color: #333;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .difference-box {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .difference-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border-left: 4px solid #c33;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .data-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            font-size: 0.85em;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 8px;
+            text-align: right;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .data-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .data-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .loading-message {
+            text-align: center;
+            color: #667eea;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab-button {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #666;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 0;
+            width: auto;
+            transition: color 0.3s;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Retirement Tax Conversion Strategy Simulator</h1>
+            <p>Compare withdrawal strategies to minimize taxes and optimize retirement income</p>
+        </header>
+
+        <div class="content">
+            <!-- LEFT PANEL: INPUT FORM -->
+            <div class="form-section">
+                <h2>Plan Your Retirement</h2>
+                
+                <div class="form-group">
+                    <label for="startAge">Starting Age</label>
+                    <input type="number" id="startAge" value="65" min="50" max="100">
+                    <small>Age when retirement begins</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="endAge">Ending Age</label>
+                    <input type="number" id="endAge" value="95" min="65" max="120">
+                    <small>Projected age at end of plan</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="spouseDeathAge">Spouse Death Age</label>
+                    <input type="number" id="spouseDeathAge" value="85" min="50" max="120">
+                    <small>Age when spouse passes (affects filing status)</small>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="form-group">
+                    <label for="initialRoth">Initial Roth Balance ($)</label>
+                    <input type="number" id="initialRoth" value="200000" min="0" step="10000">
+                    <small>Starting balance in Roth IRA/401(k)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="initialTrad">Initial Traditional Balance ($)</label>
+                    <input type="number" id="initialTrad" value="1500000" min="0" step="10000">
+                    <small>Starting balance in Traditional IRA/401(k)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="growthRate">Annual Growth Rate (%)</label>
+                    <input type="number" id="growthRate" value="5" min="0" max="20" step="0.5">
+                    <small>Expected annual portfolio growth</small>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="form-group">
+                    <label for="marriedSS">Married Social Security ($)</label>
+                    <input type="number" id="marriedSS" value="40000" min="0" step="1000">
+                    <small>Combined annual SS while married</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="singleSS">Single Social Security ($)</label>
+                    <input type="number" id="singleSS" value="25000" min="0" step="1000">
+                    <small>Annual SS after spouse passes</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="pension">Annual Pension Income ($)</label>
+                    <input type="number" id="pension" value="0" min="0" step="1000">
+                    <small>Fixed annual pension payment (if applicable)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="withdrawalRate">Annual Withdrawal Rate (%)</label>
+                    <input type="number" id="withdrawalRate" value="12" min="0" max="50" step="0.5">
+                    <small>Percentage of traditional balance to withdraw annually</small>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="form-group">
+                    <label for="strategy">Withdrawal Strategy</label>
+                    <select id="strategy">
+                        <option value="B">Strategy B: Go into 24% Tax Bracket</option>
+                        <option value="A">Strategy A: Stop at 22% Tax Bracket</option>
+                    </select>
+                    <small>A = Conservative (lower taxes), B = Aggressive (maximize withdrawals)</small>
+                </div>
+
+                <button onclick="runSimulation()">Calculate Scenarios</button>
+                <div class="loading-message" id="loadingMessage" style="display: none;">Loading Pyodide...</div>
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+
+            <!-- RIGHT PANEL: RESULTS -->
+            <div class="results-section">
+                <h2>Results</h2>
+                <div id="resultsContent" class="results-hidden">
+                    <div class="tabs">
+                        <button class="tab-button active" onclick="switchTab('summary')">Summary</button>
+                        <button class="tab-button" onclick="switchTab('details')">Year-by-Year</button>
+                    </div>
+
+                    <div id="summary" class="tab-content active">
+                        <!-- Scenario A -->
+                        <div class="comparison-box">
+                            <h3>📊 Scenario A: Stop at 22% Bracket</h3>
+                            <div class="result-row">
+                                <span class="result-label">Total Taxes:</span>
+                                <span class="result-value" id="taxA">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Total Medicare:</span>
+                                <span class="result-value" id="medicareA">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Total Expenses:</span>
+                                <span class="result-value" id="expensesA">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Ending Balance:</span>
+                                <span class="result-value" id="balanceA">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Scenario B -->
+                        <div class="comparison-box scenario-b">
+                            <h3>📈 Scenario B: Go into 24% Bracket</h3>
+                            <div class="result-row">
+                                <span class="result-label">Total Taxes:</span>
+                                <span class="result-value" id="taxB">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Total Medicare:</span>
+                                <span class="result-value" id="medicareB">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Total Expenses:</span>
+                                <span class="result-value" id="expensesB">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Ending Balance:</span>
+                                <span class="result-value" id="balanceB">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Difference -->
+                        <div class="difference-box">
+                            <h3>⚖️ Comparison (A vs B)</h3>
+                            <div class="result-row">
+                                <span class="result-label">Tax Difference:</span>
+                                <span class="result-value" id="taxDiff">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Medicare Difference:</span>
+                                <span class="result-value" id="medicareDiff">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Total Expense Difference:</span>
+                                <span class="result-value" id="expenseDiff">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Balance Difference:</span>
+                                <span class="result-value" id="balanceDiff">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="details" class="tab-content">
+                        <p style="color: #666; margin-bottom: 15px;">Scenario A - Year-by-Year Breakdown:</p>
+                        <table class="data-table" id="dataTable">
+                            <thead>
+                                <tr>
+                                    <th>Age</th>
+                                    <th>Status</th>
+                                    <th>SS</th>
+                                    <th>Pension</th>
+                                    <th>Trad W/D</th>
+                                    <th>Roth W/D</th>
+                                    <th>RMD</th>
+                                    <th>Taxes</th>
+                                    <th>Medicare</th>
+                                    <th>Net Income</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="noResults" style="text-align: center; color: #999; padding: 40px;">
+                    👈 Fill in your retirement details and click "Calculate Scenarios" to see results
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pyodide = null;
+
+        async function initPyodide() {
+            if (pyodide) return;
+            
+            const loadingMsg = document.getElementById('loadingMessage');
+            loadingMsg.style.display = 'block';
+            
+            try {
+                pyodide = await loadPyodide();
+                await pyodide.loadPackage('numpy');
+                await pyodide.loadPackage('pandas');
+                await pyodide.loadPackage('matplotlib');
+                loadingMsg.style.display = 'none';
+            } catch (error) {
+                loadingMsg.style.display = 'none';
+                showError('Failed to initialize Pyodide: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function runSimulation() {
+            try {
+                await initPyodide();
+
+                const params = {
+                    start_age: parseInt(document.getElementById('startAge').value),
+                    end_age: parseInt(document.getElementById('endAge').value),
+                    spouse_death_age: parseInt(document.getElementById('spouseDeathAge').value),
+                    initial_roth_balance: parseFloat(document.getElementById('initialRoth').value),
+                    initial_trad_balance: parseFloat(document.getElementById('initialTrad').value),
+                    growth_rate: parseFloat(document.getElementById('growthRate').value) / 100,
+                    married_ss_income: parseFloat(document.getElementById('marriedSS').value),
+                    single_ss_income: parseFloat(document.getElementById('singleSS').value),
+                    pension_income: parseFloat(document.getElementById('pension').value),
+                    withdrawal_rate: parseFloat(document.getElementById('withdrawalRate').value) / 100,
+                    strategy: document.getElementById('strategy').value
+                };
+
+                // Fetch the Python code
+                const pythonCode = await fetch('conversion.py').then(r => r.text());
+                
+                // Create simulation code
+                const simCode = `
+import json
+
+${pythonCode}
+
+# Run simulations
+results_a = simulate_retirement(**params, strategy="A")
+results_b = simulate_retirement(**params, strategy="B")
+
+def summarize(results):
+    total_taxes = sum(r["Taxes"] for r in results)
+    total_medicare = sum(r["Medicare Cost"] for r in results)
+    total_expenses = total_taxes + total_medicare
+    ending_balance = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
+    return total_taxes, total_medicare, total_expenses, ending_balance
+
+tax_a, medicare_a, expenses_a, bal_a = summarize(results_a)
+tax_b, medicare_b, expenses_b, bal_b = summarize(results_b)
+
+output = {
+    "scenarioA": {
+        "taxes": tax_a,
+        "medicare": medicare_a,
+        "expenses": expenses_a,
+        "balance": bal_a
+    },
+    "scenarioB": {
+        "taxes": tax_b,
+        "medicare": medicare_b,
+        "expenses": expenses_b,
+        "balance": bal_b
+    },
+    "resultsA": results_a,
+    "resultsB": results_b
+}
+
+output
+`;
+
+                // Run Python code
+                const result = await pyodide.runPythonAsync(simCode);
+                const output = result.toJs({dict_converter: Object.fromEntries});
+
+                // Display results
+                displayResults(output);
+
+            } catch (error) {
+                showError('Error: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        function displayResults(output) {
+            const a = output.scenarioA;
+            const b = output.scenarioB;
+            const resultsA = output.resultsA;
+
+            // Update summary
+            document.getElementById('taxA').textContent = formatCurrency(a.taxes);
+            document.getElementById('medicareA').textContent = formatCurrency(a.medicare);
+            document.getElementById('expensesA').textContent = formatCurrency(a.expenses);
+            document.getElementById('balanceA').textContent = formatCurrency(a.balance);
+
+            document.getElementById('taxB').textContent = formatCurrency(b.taxes);
+            document.getElementById('medicareB').textContent = formatCurrency(b.medicare);
+            document.getElementById('expensesB').textContent = formatCurrency(b.expenses);
+            document.getElementById('balanceB').textContent = formatCurrency(b.balance);
+
+            // Differences
+            document.getElementById('taxDiff').textContent = 
+                formatCurrency(a.taxes - b.taxes) + (a.taxes < b.taxes ? ' (A saves)' : ' (B saves)');
+            document.getElementById('medicareDiff').textContent = 
+                formatCurrency(a.medicare - b.medicare) + (a.medicare < b.medicare ? ' (A saves)' : ' (B saves)');
+            document.getElementById('expenseDiff').textContent = 
+                formatCurrency(a.expenses - b.expenses) + (a.expenses < b.expenses ? ' (A saves)' : ' (B saves)');
+            document.getElementById('balanceDiff').textContent = 
+                formatCurrency(a.balance - b.balance);
+
+            // Update table with Scenario A data
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            resultsA.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.Age}</td>
+                    <td>${row["Filing Status"]}</td>
+                    <td>${formatCurrency(row["Social Security"])}</td>
+                    <td>${formatCurrency(row["Pension"])}</td>
+                    <td>${formatCurrency(row["Traditional Withdrawal"])}</td>
+                    <td>${formatCurrency(row["Roth Withdrawal"])}</td>
+                    <td>${formatCurrency(row["RMD Required"])}</td>
+                    <td>${formatCurrency(row["Taxes"])}</td>
+                    <td>${formatCurrency(row["Medicare Cost"])}</td>
+                    <td>${formatCurrency(row["Net Income"])}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Show results, hide placeholder
+            document.getElementById('resultsContent').classList.remove('results-hidden');
+            document.getElementById('noResults').style.display = 'none';
+        }
+
+        // Initialize Pyodide on page load
+        window.addEventListener('load', initPyodide);
+    </script>
+</body>
+</html>
