@@ -135,7 +135,8 @@ def simulate_retirement(
     initial_roth_balance,
     initial_trad_balance,
     growth_rate,
-    ss_income,
+    married_ss_income,
+    single_ss_income,
     pension_income,
     withdrawal_rate,
     married_brackets,
@@ -152,9 +153,13 @@ def simulate_retirement(
 
     for age in range(start_age, end_age + 1):
         # Filing status switch
-        filing_status = "married" if age < spouse_death_age else "single"
-        brackets = married_brackets if filing_status == "married" else single_brackets
-        deduction = married_deduction if filing_status == "married" else single_deduction
+        is_married = age < spouse_death_age
+        filing_status = "married" if is_married else "single"
+        brackets = married_brackets if is_married else single_brackets
+        deduction = married_deduction if is_married else single_deduction
+        
+        # Social Security income changes when spouse passes
+        ss_income = married_ss_income if is_married else single_ss_income
 
         # Upper bound of the 22% bracket (start of 24% bracket)
         limit_22pct = brackets[2][1] if len(brackets) > 2 else 999999999
@@ -262,7 +267,8 @@ params = {
     "initial_roth_balance": 200000,
     "initial_trad_balance": 1500000,  # Increased for 24% testing
     "growth_rate": 0.05,
-    "ss_income": 40000,  # Annual Social Security income
+    "married_ss_income": 40000,  # Combined Social Security as married couple
+    "single_ss_income": 25000,   # Individual's Social Security as single (after spouse passes)
     "pension_income": 0,  # Annual pension income (if applicable)
     "withdrawal_rate": 0.12,
     "married_brackets": [
@@ -326,15 +332,15 @@ print("=" * 80)
 if pd is not None:
     df_a = pd.DataFrame(results_a)
     print("\nScenario A - Head (First 5 years):")
-    print(df_a[["Age", "Social Security", "Pension", "Traditional Withdrawal", "Roth Withdrawal", 
+    print(df_a[["Age", "Filing Status", "Social Security", "Pension", "Traditional Withdrawal", "Roth Withdrawal", 
                 "RMD Required", "Taxes", "Medicare Cost", "Net Income"]].head())
     
-    # Show years where RMD kicks in
-    rmd_years = df_a[df_a["RMD Required"] > 0]
-    if not rmd_years.empty:
-        print("\nScenario A - RMD Years (Starting at age 73):")
-        print(rmd_years[["Age", "Traditional Balance", "RMD Required", "Traditional Withdrawal", 
-                         "Roth Withdrawal", "Total Income", "Taxes", "Medicare Cost"]].head(10))
+    # Show years where RMD kicks in or filing status changes
+    print("\nScenario A - Key Transition Years:")
+    df_filtered = df_a[(df_a["RMD Required"] > 0) | (df_a["Filing Status"] != df_a["Filing Status"].shift())]
+    if not df_filtered.empty:
+        print(df_filtered[["Age", "Filing Status", "Social Security", "Traditional Balance", "RMD Required", 
+                           "Traditional Withdrawal", "Roth Withdrawal", "Total Income", "Taxes", "Medicare Cost"]].head(15))
 
 # -----------------------------
 # VISUALIZATION (If possible)
@@ -349,6 +355,7 @@ if plt is not None:
              label="Total Balance (Scenario A)", linewidth=2)
     ax1.plot(ages, [r["Roth Balance"] + r["Traditional Balance"] for r in results_b], 
              label="Total Balance (Scenario B)", linestyle='--', linewidth=2)
+    ax1.axvline(x=params["spouse_death_age"], color='gray', linestyle=':', alpha=0.5, label=f'Spouse passes (age {params["spouse_death_age"]})')
     ax1.set_xlabel("Age")
     ax1.set_ylabel("Balance ($)")
     ax1.set_title("Portfolio Balance Comparison")
@@ -360,6 +367,7 @@ if plt is not None:
     ax2.plot(ages, [r["Taxes"] for r in results_a], label="Scenario A", linewidth=2)
     ax2.plot(ages, [r["Taxes"] for r in results_b], label="Scenario B", linestyle='--', linewidth=2)
     ax2.axvline(x=73, color='red', linestyle=':', alpha=0.5, label='RMD Starts (age 73)')
+    ax2.axvline(x=params["spouse_death_age"], color='gray', linestyle=':', alpha=0.5, label=f'Spouse passes (age {params["spouse_death_age"]})')
     ax2.set_xlabel("Age")
     ax2.set_ylabel("Annual Taxes ($)")
     ax2.set_title("Annual Tax Liability")
@@ -371,6 +379,7 @@ if plt is not None:
     ax3.plot(ages, [r["Medicare Cost"] for r in results_a], label="Scenario A", linewidth=2)
     ax3.plot(ages, [r["Medicare Cost"] for r in results_b], label="Scenario B", linestyle='--', linewidth=2)
     ax3.axvline(x=65, color='green', linestyle=':', alpha=0.5, label='Medicare Starts (age 65)')
+    ax3.axvline(x=params["spouse_death_age"], color='gray', linestyle=':', alpha=0.5, label=f'Spouse passes (age {params["spouse_death_age"]})')
     ax3.set_xlabel("Age")
     ax3.set_ylabel("Annual Medicare Cost ($)")
     ax3.set_title("Medicare Premium Costs (IRMAA-Based)")
@@ -390,6 +399,7 @@ if plt is not None:
     ax4.bar(ages, trad_series, bottom=bottom_2, label="Traditional 401(k)/IRA", alpha=0.8)
     bottom_3 = [bottom_2[i] + trad_series[i] for i in range(len(ages))]
     ax4.bar(ages, roth_series, bottom=bottom_3, label="Roth 401(k)/IRA", alpha=0.8)
+    ax4.axvline(x=params["spouse_death_age"], color='black', linestyle='-', linewidth=2, alpha=0.7, label=f'Spouse passes')
     
     ax4.set_xlabel("Age")
     ax4.set_ylabel("Annual Income ($)")
