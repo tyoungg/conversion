@@ -60,7 +60,8 @@ def calculate_medicare_premium(modified_adjusted_gross_income, filing_status, ag
     
     Premiums increase with MAGI. This is simplified - uses standard brackets.
     Note: Actual premiums depend on state and specific plan.
-    Note: Roth withdrawals do NOT count towards MAGI for Medicare purposes.
+    Note: Roth withdrawals do NOT count towards MAGI for Medicare IRMAA.
+    Note: Pension income DOES count towards MAGI.
     """
     if age < 65:
         return 0  # No Medicare until 65
@@ -101,6 +102,7 @@ def calculate_rmd(account_balance, age, filing_status):
     
     Note: Roth IRA/401(k) do NOT have RMD requirements during account owner's lifetime.
     This function only applies to Traditional accounts.
+    Note: Pension income does not have RMDs - it's a fixed payment stream.
     """
     RMD_START_AGE = 73
     
@@ -134,6 +136,7 @@ def simulate_retirement(
     initial_trad_balance,
     growth_rate,
     ss_income,
+    pension_income,
     withdrawal_rate,
     married_brackets,
     single_brackets,
@@ -182,7 +185,7 @@ def simulate_retirement(
         else:
             # Strategy A: Stop at 22% bracket
             # We need to find max W_trad such that:
-            # (W_trad + TaxableSS(W_trad) - Deduction) <= limit_22pct
+            # (W_trad + Pension + TaxableSS(W_trad) - Deduction) <= limit_22pct
 
             # Simple binary search for W_trad
             low = 0
@@ -192,7 +195,7 @@ def simulate_retirement(
             for _ in range(20):
                 mid = (low + high) / 2
                 taxable_ss = calculate_taxable_ss(mid, ss_income, filing_status)
-                taxable_income = max(0, mid + taxable_ss - deduction)
+                taxable_income = max(0, mid + pension_income + taxable_ss - deduction)
 
                 if taxable_income <= limit_22pct:
                     best_w_trad = mid
@@ -209,35 +212,38 @@ def simulate_retirement(
             roth_balance -= actual_withdrawal_roth
 
         # Calculate taxes for the year
-        # IMPORTANT: Only Traditional withdrawals are taxable
+        # IMPORTANT: Only Traditional + Pension + Taxable SS are taxable
         # Roth withdrawals are tax-free and do NOT increase taxable income
         taxable_ss = calculate_taxable_ss(actual_withdrawal_trad, ss_income, filing_status)
-        taxable_income = max(0, actual_withdrawal_trad + taxable_ss - deduction)
+        taxable_income = max(0, actual_withdrawal_trad + pension_income + taxable_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
 
         # Calculate Medicare costs
-        # IMPORTANT: Only Traditional withdrawals count towards MAGI for Medicare IRMAA
+        # IMPORTANT: Traditional + Pension + SS count towards MAGI for Medicare IRMAA
         # Roth withdrawals do NOT affect Medicare premiums
         medicare_cost = 0
         if include_medicare and age >= 65:
-            magi = actual_withdrawal_trad + ss_income
+            magi = actual_withdrawal_trad + pension_income + ss_income
             medicare_cost = calculate_medicare_premium(magi, filing_status, age)
 
-        # Total income includes both sources (Traditional, Roth, and SS)
-        # But taxes/Medicare only apply to Traditional + SS
-        total_income = ss_income + actual_withdrawal_trad + actual_withdrawal_roth
+        # Total income includes all sources
+        # But taxes/Medicare only apply to Traditional + Pension + SS (taxable sources)
+        total_income = ss_income + pension_income + actual_withdrawal_trad + actual_withdrawal_roth
         total_expenses = taxes + medicare_cost
         net_income = total_income - total_expenses
 
         results.append({
             "Age": age,
             "Filing Status": filing_status,
+            "Social Security": ss_income,
+            "Pension": pension_income,
+            "Traditional Withdrawal": actual_withdrawal_trad,
+            "Roth Withdrawal": actual_withdrawal_roth,
             "Roth Balance": roth_balance,
             "Traditional Balance": trad_balance,
             "RMD Required": rmd,
-            "Withdrawal Trad": actual_withdrawal_trad,
-            "Withdrawal Roth": actual_withdrawal_roth,
             "Total Income": total_income,
+            "Taxable Income": taxable_income,
             "Taxes": taxes,
             "Medicare Cost": medicare_cost,
             "Net Income": net_income
@@ -256,7 +262,8 @@ params = {
     "initial_roth_balance": 200000,
     "initial_trad_balance": 1500000,  # Increased for 24% testing
     "growth_rate": 0.05,
-    "ss_income": 40000,
+    "ss_income": 40000,  # Annual Social Security income
+    "pension_income": 0,  # Annual pension income (if applicable)
     "withdrawal_rate": 0.12,
     "married_brackets": [
         (0, 22000, 0.10),
@@ -294,9 +301,9 @@ def summarize(results):
 tax_a, medicare_a, expenses_a, bal_a = summarize(results_a)
 tax_b, medicare_b, expenses_b, bal_b = summarize(results_b)
 
-print("=" * 70)
+print("=" * 80)
 print("RETIREMENT STRATEGY COMPARISON")
-print("=" * 70)
+print("=" * 80)
 print(f"\nScenario A (Stop at 22%):")
 print(f"  Total Taxes:        ${tax_a:>15,.2f}")
 print(f"  Total Medicare:     ${medicare_a:>15,.2f}")
@@ -314,18 +321,20 @@ print(f"  Tax Difference:     ${tax_a - tax_b:>15,.2f} {'(A saves)' if tax_a < t
 print(f"  Medicare Diff:      ${medicare_a - medicare_b:>15,.2f} {'(A saves)' if medicare_a < medicare_b else '(B saves)'}")
 print(f"  Total Expense Diff: ${expenses_a - expenses_b:>15,.2f} {'(A saves)' if expenses_a < expenses_b else '(B saves)'}")
 print(f"  Balance Difference: ${bal_a - bal_b:>15,.2f}")
-print("=" * 70)
+print("=" * 80)
 
 if pd is not None:
     df_a = pd.DataFrame(results_a)
     print("\nScenario A - Head (First 5 years):")
-    print(df_a[["Age", "Withdrawal Trad", "Withdrawal Roth", "RMD Required", "Taxes", "Medicare Cost", "Net Income"]].head())
+    print(df_a[["Age", "Social Security", "Pension", "Traditional Withdrawal", "Roth Withdrawal", 
+                "RMD Required", "Taxes", "Medicare Cost", "Net Income"]].head())
     
     # Show years where RMD kicks in
     rmd_years = df_a[df_a["RMD Required"] > 0]
     if not rmd_years.empty:
         print("\nScenario A - RMD Years (Starting at age 73):")
-        print(rmd_years[["Age", "Traditional Balance", "RMD Required", "Withdrawal Trad", "Withdrawal Roth", "Taxes", "Medicare Cost"]].head(10))
+        print(rmd_years[["Age", "Traditional Balance", "RMD Required", "Traditional Withdrawal", 
+                         "Roth Withdrawal", "Total Income", "Taxes", "Medicare Cost"]].head(10))
 
 # -----------------------------
 # VISUALIZATION (If possible)
@@ -369,18 +378,25 @@ if plt is not None:
     ax3.grid(True, alpha=0.3)
     ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1e3:.1f}K'))
     
-    # Chart 4: Cumulative Expenses (Taxes + Medicare)
-    cumulative_a = [sum(r["Taxes"] + r["Medicare Cost"] for r in results_a[:i+1]) for i in range(len(results_a))]
-    cumulative_b = [sum(r["Taxes"] + r["Medicare Cost"] for r in results_b[:i+1]) for i in range(len(results_b))]
+    # Chart 4: Income Breakdown Stacked (Scenario A)
+    ss_income_series = [r["Social Security"] for r in results_a]
+    pension_series = [r["Pension"] for r in results_a]
+    trad_series = [r["Traditional Withdrawal"] for r in results_a]
+    roth_series = [r["Roth Withdrawal"] for r in results_a]
     
-    ax4.plot(ages, cumulative_a, label="Scenario A", linewidth=2)
-    ax4.plot(ages, cumulative_b, label="Scenario B", linestyle='--', linewidth=2)
+    ax4.bar(ages, ss_income_series, label="Social Security", alpha=0.8)
+    ax4.bar(ages, pension_series, bottom=ss_income_series, label="Pension", alpha=0.8)
+    bottom_2 = [ss_income_series[i] + pension_series[i] for i in range(len(ages))]
+    ax4.bar(ages, trad_series, bottom=bottom_2, label="Traditional 401(k)/IRA", alpha=0.8)
+    bottom_3 = [bottom_2[i] + trad_series[i] for i in range(len(ages))]
+    ax4.bar(ages, roth_series, bottom=bottom_3, label="Roth 401(k)/IRA", alpha=0.8)
+    
     ax4.set_xlabel("Age")
-    ax4.set_ylabel("Cumulative Expenses ($)")
-    ax4.set_title("Cumulative Taxes + Medicare")
+    ax4.set_ylabel("Annual Income ($)")
+    ax4.set_title("Income Breakdown - Scenario A")
     ax4.legend()
-    ax4.grid(True, alpha=0.3)
-    ax4.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1e6:.1f}M'))
+    ax4.grid(True, alpha=0.3, axis='y')
+    ax4.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1e3:.0f}K'))
     
     plt.tight_layout()
     plt.show()
