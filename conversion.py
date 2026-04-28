@@ -28,6 +28,9 @@ def calculate_taxable_ss(withdrawal_trad, ss_income, filing_status):
     """
     Simplified Social Security taxation based on provisional income.
     provisional_income = non_ss_income + 0.5 * ss_income
+    
+    Note: Roth withdrawals do NOT count towards provisional income.
+    Only Traditional/taxable withdrawals are included.
     """
     provisional_income = withdrawal_trad + 0.5 * ss_income
 
@@ -57,6 +60,7 @@ def calculate_medicare_premium(modified_adjusted_gross_income, filing_status, ag
     
     Premiums increase with MAGI. This is simplified - uses standard brackets.
     Note: Actual premiums depend on state and specific plan.
+    Note: Roth withdrawals do NOT count towards MAGI for Medicare purposes.
     """
     if age < 65:
         return 0  # No Medicare until 65
@@ -94,6 +98,9 @@ def calculate_rmd(account_balance, age, filing_status):
     Calculate Required Minimum Distribution (RMD) for Traditional IRA/401(k).
     RMD required starting at age 73 (as of 2023 SECURE Act 2.0).
     Uses IRS life expectancy tables (simplified with uniform divisor).
+    
+    Note: Roth IRA/401(k) do NOT have RMD requirements during account owner's lifetime.
+    This function only applies to Traditional accounts.
     """
     RMD_START_AGE = 73
     
@@ -158,7 +165,7 @@ def simulate_retirement(
         if include_rmd:
             rmd = calculate_rmd(trad_balance, age, filing_status)
 
-        # Determine target withdrawal
+        # Determine target withdrawal (from Traditional/taxable sources)
         target_withdrawal = max(trad_balance * withdrawal_rate, rmd)
 
         actual_withdrawal_trad = 0
@@ -202,17 +209,22 @@ def simulate_retirement(
             roth_balance -= actual_withdrawal_roth
 
         # Calculate taxes for the year
+        # IMPORTANT: Only Traditional withdrawals are taxable
+        # Roth withdrawals are tax-free and do NOT increase taxable income
         taxable_ss = calculate_taxable_ss(actual_withdrawal_trad, ss_income, filing_status)
         taxable_income = max(0, actual_withdrawal_trad + taxable_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
 
         # Calculate Medicare costs
+        # IMPORTANT: Only Traditional withdrawals count towards MAGI for Medicare IRMAA
+        # Roth withdrawals do NOT affect Medicare premiums
         medicare_cost = 0
         if include_medicare and age >= 65:
-            # MAGI for Medicare purposes = AGI, which includes Traditional withdrawals + SS income
             magi = actual_withdrawal_trad + ss_income
             medicare_cost = calculate_medicare_premium(magi, filing_status, age)
 
+        # Total income includes both sources (Traditional, Roth, and SS)
+        # But taxes/Medicare only apply to Traditional + SS
         total_income = ss_income + actual_withdrawal_trad + actual_withdrawal_roth
         total_expenses = taxes + medicare_cost
         net_income = total_income - total_expenses
@@ -307,13 +319,13 @@ print("=" * 70)
 if pd is not None:
     df_a = pd.DataFrame(results_a)
     print("\nScenario A - Head (First 5 years):")
-    print(df_a[["Age", "Withdrawal Trad", "RMD Required", "Taxes", "Medicare Cost", "Net Income"]].head())
+    print(df_a[["Age", "Withdrawal Trad", "Withdrawal Roth", "RMD Required", "Taxes", "Medicare Cost", "Net Income"]].head())
     
     # Show years where RMD kicks in
     rmd_years = df_a[df_a["RMD Required"] > 0]
     if not rmd_years.empty:
         print("\nScenario A - RMD Years (Starting at age 73):")
-        print(rmd_years[["Age", "Traditional Balance", "RMD Required", "Withdrawal Trad", "Taxes", "Medicare Cost"]].head(10))
+        print(rmd_years[["Age", "Traditional Balance", "RMD Required", "Withdrawal Trad", "Withdrawal Roth", "Taxes", "Medicare Cost"]].head(10))
 
 # -----------------------------
 # VISUALIZATION (If possible)
