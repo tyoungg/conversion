@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Retirement Calculator</title>
     <style>
+        .formatted-number {
+            text-align: right;
+        }
         body {
             font-family: Arial, sans-serif;
             max-width: 1000px;
@@ -133,7 +136,7 @@
         </div>
         <div>
             <label for="withdrawal_rate">Annual Withdrawal Rate (%):</label>
-            <input type="number" id="withdrawal_rate" step="0.1" value="6">
+            <input type="number" id="withdrawal_rate" step="0.1" value="12">
         </div>
 
         <h3>Standard Deduction</h3>
@@ -283,6 +286,31 @@
             return tax;
         }
 
+        function formatNumber(val) {
+            if (isNaN(val)) return "";
+            return val.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        }
+
+        function unformatNumber(str) {
+            return parseFloat(str.replace(/,/g, '')) || 0;
+        }
+
+        function handleInput(e) {
+            const cursorStart = e.target.selectionStart;
+            const originalLength = e.target.value.length;
+            const value = unformatNumber(e.target.value);
+            e.target.value = formatNumber(value);
+            const newLength = e.target.value.length;
+            e.target.setSelectionRange(cursorStart + (newLength - originalLength), cursorStart + (newLength - originalLength));
+        }
+
+        document.querySelectorAll('input[type="number"]:not([step="0.1"]):not([id="start_age"]):not([id="end_age"]):not([id="spouse_death_age"])').forEach(input => {
+            input.type = "text";
+            input.classList.add('formatted-number');
+            input.value = formatNumber(parseFloat(input.value));
+            input.addEventListener('input', handleInput);
+        });
+
         function calculateTaxableSS(withdrawal, ss_income, status, t1, t2) {
             const provisional_income = withdrawal + 0.5 * ss_income;
             if (provisional_income < t1) return 0;
@@ -296,8 +324,8 @@
             const brackets = [];
             rows.forEach(row => {
                 const inputs = row.querySelectorAll('input');
-                const lower = parseFloat(inputs[0].value);
-                const upper = parseFloat(inputs[1].value);
+                const lower = unformatNumber(inputs[0].value);
+                const upper = unformatNumber(inputs[1].value);
                 const rate = parseFloat(inputs[2].value) / 100;
                 brackets.push([lower, upper, rate]);
             });
@@ -362,14 +390,14 @@
                         {
                             label: 'Roth (B)',
                             data: resultsB.map(r => r.RothBalance),
-                            borderColor: 'blue',
+                            borderColor: 'cyan',
                             borderDash: [5, 5],
                             fill: false
                         },
                         {
                             label: 'Trad (B)',
                             data: resultsB.map(r => r.TraditionalBalance),
-                            borderColor: 'green',
+                            borderColor: 'orange',
                             borderDash: [5, 5],
                             fill: false
                         }
@@ -411,6 +439,8 @@
                 if (strategy === 'B') {
                     withdrawalTrad = Math.min(targetWithdrawal, tradBalance);
                     tradBalance -= withdrawalTrad;
+                    withdrawalRoth = Math.min(targetWithdrawal - withdrawalTrad, rothBalance);
+                    rothBalance -= withdrawalRoth;
                 } else {
                     // Strategy A: binary search
                     let low = 0;
@@ -461,19 +491,19 @@
                 startAge: parseInt(document.getElementById('start_age').value),
                 endAge: parseInt(document.getElementById('end_age').value),
                 spouseDeathAge: parseInt(document.getElementById('spouse_death_age').value),
-                rothBalance: parseFloat(document.getElementById('roth_balance').value),
-                tradBalance: parseFloat(document.getElementById('trad_balance').value),
-                ssIncome: parseFloat(document.getElementById('ss_income').value),
+                rothBalance: unformatNumber(document.getElementById('roth_balance').value),
+                tradBalance: unformatNumber(document.getElementById('trad_balance').value),
+                ssIncome: unformatNumber(document.getElementById('ss_income').value),
                 growthRate: parseFloat(document.getElementById('growth_rate').value) / 100,
                 withdrawalRate: parseFloat(document.getElementById('withdrawal_rate').value) / 100,
                 marriedBrackets: getBracketsFromTable('married-brackets'),
                 singleBrackets: getBracketsFromTable('single-brackets'),
-                marriedDeduction: parseFloat(document.getElementById('married_deduction').value),
-                singleDeduction: parseFloat(document.getElementById('single_deduction').value),
-                marriedSST1: parseFloat(document.getElementById('married_ss_t1').value),
-                marriedSST2: parseFloat(document.getElementById('married_ss_t2').value),
-                singleSST1: parseFloat(document.getElementById('single_ss_t1').value),
-                singleSST2: parseFloat(document.getElementById('single_ss_t2').value),
+                marriedDeduction: unformatNumber(document.getElementById('married_deduction').value),
+                singleDeduction: unformatNumber(document.getElementById('single_deduction').value),
+                marriedSST1: unformatNumber(document.getElementById('married_ss_t1').value),
+                marriedSST2: unformatNumber(document.getElementById('married_ss_t2').value),
+                singleSST1: unformatNumber(document.getElementById('single_ss_t1').value),
+                singleSST2: unformatNumber(document.getElementById('single_ss_t2').value),
             };
 
             const resultsA = runSimulation('A', inputs);
