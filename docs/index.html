@@ -502,6 +502,8 @@
                                         <th>Pension</th>
                                         <th>Trad W/D</th>
                                         <th>Roth W/D</th>
+                                        <th>Trad Bal</th>
+                                        <th>Roth Bal</th>
                                         <th>RMD</th>
                                         <th>Taxes</th>
                                         <th>Medicare</th>
@@ -700,6 +702,8 @@ output
                     <td>${formatCurrency(row["Pension"])}</td>
                     <td>${formatCurrency(row["Traditional Withdrawal"])}</td>
                     <td>${formatCurrency(row["Roth Withdrawal"])}</td>
+                    <td>${formatCurrency(row["Traditional Balance"])}</td>
+                    <td>${formatCurrency(row["Roth Balance"])}</td>
                     <td>${formatCurrency(row["RMD Required"])}</td>
                     <td>${formatCurrency(row["Taxes"])}</td>
                     <td>${formatCurrency(row["Medicare Cost"])}</td>

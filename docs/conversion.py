@@ -24,17 +24,13 @@ def calculate_tax(taxable_income, brackets):
     return tax
 
 
-def calculate_taxable_ss(withdrawal_trad, ss_income, filing_status):
+def calculate_taxable_ss(withdrawal_trad, other_taxable_income, ss_income, filing_status):
     """
     Simplified Social Security taxation based on provisional income.
-    provisional_income = non_ss_income + 0.5 * ss_income
-
-    Note: Roth withdrawals do NOT count towards provisional income.
-    Only Traditional/taxable withdrawals are included.
+    provisional_income = other_taxable_income + withdrawal_trad + 0.5 * ss_income
     """
-    provisional_income = withdrawal_trad + 0.5 * ss_income
+    provisional_income = withdrawal_trad + other_taxable_income + 0.5 * ss_income
 
-    # Standard thresholds (Simplified)
     if filing_status == "married":
         t1, t2 = 32000, 44000
     else:  # single
@@ -53,76 +49,57 @@ def calculate_taxable_ss(withdrawal_trad, ss_income, filing_status):
 # -----------------------------
 # MEDICARE AND RMD FUNCTIONS
 # -----------------------------
-def calculate_medicare_premium(modified_adjusted_gross_income, filing_status, age):
-    """
-    Calculates Medicare Part B and D premiums based on MAGI (Modified Adjusted Gross Income).
-    Uses 2024 IRMAA (Income-Related Monthly Adjustment Amount) brackets.
-
-    Premiums increase with MAGI. This is simplified - uses standard brackets.
-    Note: Actual premiums depend on state and specific plan.
-    Note: Roth withdrawals do NOT count towards MAGI for Medicare IRMAA.
-    Note: Pension income DOES count towards MAGI.
-    """
+def calculate_medicare_premium(magi, filing_status, age):
+    """Calculates annual Medicare premiums based on MAGI."""
     if age < 65:
-        return 0  # No Medicare until 65
+        return 0
 
-    # 2024 IRMAA brackets (simplified - combined Part B + Part D)
-    # Returns monthly premium, multiply by 12 for annual
     if filing_status == "married":
-        if modified_adjusted_gross_income <= 194000:
+        if magi <= 194000:
             monthly_premium = 164.90
-        elif modified_adjusted_gross_income <= 246000:
+        elif magi <= 246000:
             monthly_premium = 230.80
-        elif modified_adjusted_gross_income <= 306000:
+        elif magi <= 306000:
             monthly_premium = 321.80
-        elif modified_adjusted_gross_income <= 366000:
+        elif magi <= 366000:
             monthly_premium = 412.70
         else:
             monthly_premium = 503.70
     else:  # single
-        if modified_adjusted_gross_income <= 97000:
+        if magi <= 97000:
             monthly_premium = 164.90
-        elif modified_adjusted_gross_income <= 123000:
+        elif magi <= 123000:
             monthly_premium = 230.80
-        elif modified_adjusted_gross_income <= 153000:
+        elif magi <= 153000:
             monthly_premium = 321.80
-        elif modified_adjusted_gross_income <= 183000:
+        elif magi <= 183000:
             monthly_premium = 412.70
         else:
             monthly_premium = 503.70
 
-    return monthly_premium * 12  # Annual premium
+    return monthly_premium * 12
 
 
 def calculate_rmd(account_balance, age, filing_status):
-    """
-    Calculate Required Minimum Distribution (RMD) for Traditional IRA/401(k).
-    RMD required starting at age 73 (as of 2023 SECURE Act 2.0).
-    Uses IRS life expectancy tables (simplified with uniform divisor).
-
-    Note: Roth IRA/401(k) do NOT have RMD requirements during account owner's lifetime.
-    This function only applies to Traditional accounts.
-    Note: Pension income does not have RMDs - it's a fixed payment stream.
-    """
+    """Calculates RMD based on prior year ending balance and IRS uniform lifetime table."""
     RMD_START_AGE = 73
-
     if age < RMD_START_AGE:
         return 0
 
-    # Simplified IRS life expectancy divisors (Uniform Lifetime Table)
     rmd_divisors = {
         73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9,
         78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
         83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4,
         88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8,
         93: 10.1, 94: 9.5, 95: 8.9, 96: 8.4, 97: 7.8,
-        98: 7.3, 99: 6.8, 100: 6.4
+        98: 7.3, 99: 6.8, 100: 6.4, 101: 6.0, 102: 5.6,
+        103: 5.2, 104: 4.9, 105: 4.6, 106: 4.3, 107: 4.1,
+        108: 3.9, 109: 3.7, 110: 3.5, 111: 3.4, 112: 3.3,
+        113: 3.1, 114: 3.0, 115: 2.9, 116: 2.8, 117: 2.7,
+        118: 2.5, 119: 2.3, 120: 2.0
     }
-
-    divisor = rmd_divisors.get(age, 5.0)  # Default for ages beyond table
-    rmd = account_balance / divisor
-
-    return rmd
+    divisor = rmd_divisors.get(age, 5.0 if age < 120 else 2.0)
+    return account_balance / divisor
 
 
 # -----------------------------
@@ -154,6 +131,7 @@ def simulate_retirement(
             (89450, 190750, 0.22),
             (190750, 364200, 0.24),
         ]
+
     if single_brackets is None:
         single_brackets = [
             (0, 11000, 0.10),
@@ -165,109 +143,92 @@ def simulate_retirement(
     results = []
     roth_balance = initial_roth_balance
     trad_balance = initial_trad_balance
+    prev_trad_balance = initial_trad_balance
 
     for age in range(start_age, end_age + 1):
-        # Filing status switch
         is_married = age < spouse_death_age
         filing_status = "married" if is_married else "single"
         brackets = married_brackets if is_married else single_brackets
         deduction = married_deduction if is_married else single_deduction
-
-        # Social Security income changes when spouse passes
         ss_income = married_ss_income if is_married else single_ss_income
 
-        # Target threshold for optimization
         if strategy == "A":
-            # Upper bound of the 22% bracket (start of 24% bracket)
             tax_limit = brackets[2][1] if len(brackets) > 2 else 999999999
         else:
-            # Strategy B: Upper bound of the 24% bracket (start of 32% bracket)
             tax_limit = brackets[3][1] if len(brackets) > 3 else 999999999
 
-        # Grow accounts at start of year
+        rmd = calculate_rmd(prev_trad_balance, age, filing_status) if include_rmd else 0
+
+        # Grow accounts
         roth_balance *= (1 + growth_rate)
         trad_balance *= (1 + growth_rate)
 
-        # Calculate Required Minimum Distribution (if applicable)
-        rmd = 0
-        if include_rmd:
-            rmd = calculate_rmd(trad_balance, age, filing_status)
-
-        # Determine target withdrawal (total needed from retirement accounts)
-        target_withdrawal = max(trad_balance * withdrawal_rate, rmd)
-
-        # Optimization logic: Find max W_trad such that taxable income <= tax_limit
-        # AND total withdrawal >= target_withdrawal (filled by Roth)
-
-        # Simple binary search for W_trad
-        low = 0
-        high = max(target_withdrawal, trad_balance) # Can withdraw more than target if RMD or high balance
-        best_w_trad = 0
-
-        for _ in range(20):
+        # 1. Find optimized bracket limit for Traditional withdrawal
+        low, high = 0, 2000000
+        best_w_trad_limit = 0
+        for _ in range(25):
             mid = (low + high) / 2
-            taxable_ss = calculate_taxable_ss(mid, ss_income, filing_status)
-            taxable_income = max(0, mid + pension_income + taxable_ss - deduction)
-
-            if taxable_income <= tax_limit:
-                best_w_trad = mid
+            t_ss = calculate_taxable_ss(mid, pension_income, ss_income, filing_status)
+            t_inc = mid + pension_income + t_ss - deduction
+            if t_inc <= tax_limit:
+                best_w_trad_limit = mid
                 low = mid
             else:
                 high = mid
 
-        # Actual withdrawal from Traditional is limited by balance and our "best" optimized amount
-        # But must be at least the RMD if we have enough balance
-        actual_withdrawal_trad = max(rmd, min(best_w_trad, trad_balance))
-        # Wait, if RMD > best_w_trad, we HAVE to take RMD, pushing us over the limit.
-        # min(best_w_trad, trad_balance) might be less than RMD if balance is low.
-        actual_withdrawal_trad = min(actual_withdrawal_trad, trad_balance)
+        # 2. Withdrawal Strategy
+        # Spending goal tracks current portfolio balance (Traditional + Roth)
+        spending_goal = (trad_balance + roth_balance) * withdrawal_rate
 
-        trad_balance -= actual_withdrawal_trad
+        # Priority 1: Fill the tax bracket from Traditional IRA (Optimization)
+        # and ensure RMD is met.
+        actual_trad = max(rmd, best_w_trad_limit)
+        actual_trad = min(actual_trad, trad_balance)
 
-        # Remainder from Roth to reach target_withdrawal
-        needed_from_roth = max(0, target_withdrawal - actual_withdrawal_trad)
-        actual_withdrawal_roth = min(needed_from_roth, roth_balance)
-        roth_balance -= actual_withdrawal_roth
+        # Priority 2: If we haven't met our spending goal, take from Roth
+        current_wd = actual_trad
+        needed_from_roth = max(0, spending_goal - current_wd)
+        actual_roth = min(needed_from_roth, roth_balance)
+        current_wd += actual_roth
 
-        # Calculate taxes for the year
-        taxable_ss = calculate_taxable_ss(actual_withdrawal_trad, ss_income, filing_status)
-        taxable_income = max(0, actual_withdrawal_trad + pension_income + taxable_ss - deduction)
+        # Priority 3: If spending goal STILL not met and there's Trad left, take more from Trad
+        still_needed = max(0, spending_goal - current_wd)
+        if still_needed > 0 and (trad_balance - actual_trad) > 0:
+            extra = min(still_needed, trad_balance - actual_trad)
+            actual_trad += extra
+
+        trad_balance -= actual_trad
+        roth_balance -= actual_roth
+        prev_trad_balance = trad_balance
+
+        # Taxes & Medicare
+        taxable_ss = calculate_taxable_ss(actual_trad, pension_income, ss_income, filing_status)
+        taxable_income = max(0, actual_trad + pension_income + taxable_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
+        magi = actual_trad + pension_income + taxable_ss
+        medicare = calculate_medicare_premium(magi, filing_status, age) if include_medicare else 0
 
-        # Calculate Medicare costs
-        medicare_cost = 0
-        if include_medicare and age >= 65:
-            magi = actual_withdrawal_trad + pension_income + ss_income
-            medicare_cost = calculate_medicare_premium(magi, filing_status, age)
-
-        # Total income includes all sources
-        total_income = ss_income + pension_income + actual_withdrawal_trad + actual_withdrawal_roth
-        total_expenses = taxes + medicare_cost
-        net_income = total_income - total_expenses
+        total_income = ss_income + pension_income + actual_trad + actual_roth
+        net_income = total_income - (taxes + medicare)
 
         results.append({
             "Age": age,
             "Filing Status": filing_status,
             "Social Security": ss_income,
             "Pension": pension_income,
-            "Traditional Withdrawal": actual_withdrawal_trad,
-            "Roth Withdrawal": actual_withdrawal_roth,
-            "Roth Balance": roth_balance,
+            "Traditional Withdrawal": actual_trad,
+            "Roth Withdrawal": actual_roth,
             "Traditional Balance": trad_balance,
+            "Roth Balance": roth_balance,
             "RMD Required": rmd,
-            "Total Income": total_income,
-            "Taxable Income": taxable_income,
             "Taxes": taxes,
-            "Medicare Cost": medicare_cost,
+            "Medicare Cost": medicare,
             "Net Income": net_income
         })
 
     return results
 
 
-# -----------------------------
-# MAIN EXECUTION
-# -----------------------------
 if __name__ == "__main__":
     test_params = {
         "start_age": 65,
@@ -284,7 +245,6 @@ if __name__ == "__main__":
         "include_medicare": True
     }
 
-    # Run simulations
     results_a = simulate_retirement(**test_params, strategy="A")
     results_b = simulate_retirement(**test_params, strategy="B")
 
@@ -312,10 +272,4 @@ if __name__ == "__main__":
     print(f"  Total Medicare:     ${medicare_b:>15,.2f}")
     print(f"  Total Expenses:     ${expenses_b:>15,.2f}")
     print(f"  Ending Balance:     ${bal_b:>15,.2f}")
-
-    print(f"\nDifference (A vs B):")
-    print(f"  Tax Difference:     ${tax_a - tax_b:>15,.2f} {'(A saves)' if tax_a < tax_b else '(B saves)'}")
-    print(f"  Medicare Diff:      ${medicare_a - medicare_b:>15,.2f} {'(A saves)' if medicare_a < medicare_b else '(B saves)'}")
-    print(f"  Total Expense Diff: ${expenses_a - expenses_b:>15,.2f} {'(A saves)' if expenses_a < expenses_b else '(B saves)'}")
-    print(f"  Balance Difference: ${bal_a - bal_b:>15,.2f}")
     print("=" * 80)
