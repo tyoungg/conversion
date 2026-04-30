@@ -12,8 +12,8 @@ def calculate_tax(taxable_income, brackets):
     return tax
 
 
-def calculate_taxable_ss(trad_income, pension_income, ss_income, filing_status):
-    provisional = trad_income + pension_income + 0.5 * ss_income
+def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status):
+    provisional = withdrawal_trad + other_income + 0.5 * ss_income
 
     if filing_status == "married":
         t1, t2 = 32000, 44000
@@ -29,9 +29,9 @@ def calculate_taxable_ss(trad_income, pension_income, ss_income, filing_status):
 
 
 # -----------------------------
-# MEDICARE
+# MEDICARE + RMD
 # -----------------------------
-def calculate_medicare(magi, filing_status, age):
+def calculate_medicare_premium(magi, filing_status, age):
     if age < 65:
         return 0
 
@@ -40,7 +40,7 @@ def calculate_medicare(magi, filing_status, age):
     else:
         brackets = [97000, 123000, 153000, 183000]
 
-    premiums = [164.9, 230.8, 321.8, 412.7, 503.7]
+    premiums = [164.90, 230.80, 321.80, 412.70, 503.70]
 
     for i, limit in enumerate(brackets):
         if magi <= limit:
@@ -49,19 +49,15 @@ def calculate_medicare(magi, filing_status, age):
     return premiums[-1] * 12
 
 
-# -----------------------------
-# RMD
-# -----------------------------
 def calculate_rmd(balance, age):
     if age < 73 or balance <= 0:
         return 0
 
     divisors = {
-        73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7,
-        77: 22.9, 78: 22.0, 79: 21.1, 80: 20.2,
-        81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8,
-        85: 16.0, 86: 15.2, 87: 14.4, 88: 13.7,
-        89: 12.9, 90: 12.2
+        73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9,
+        78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
+        83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4,
+        88: 13.7, 89: 12.9, 90: 12.2
     }
 
     divisor = divisors.get(age, 10)
@@ -69,7 +65,7 @@ def calculate_rmd(balance, age):
 
 
 # -----------------------------
-# MAIN SIM
+# SIMULATION ENGINE (FIXED)
 # -----------------------------
 def simulate_retirement(
     start_age,
@@ -82,9 +78,10 @@ def simulate_retirement(
     single_ss_income,
     pension_income,
     withdrawal_rate,
-    strategy="B"
+    strategy="B",
+    include_rmd=True,
+    include_medicare=True
 ):
-
     married_brackets = [
         (0, 22000, 0.10),
         (22000, 89450, 0.12),
@@ -99,47 +96,55 @@ def simulate_retirement(
         (95375, 182100, 0.24),
     ]
 
-    married_deduction = 29200
-    single_deduction = 14600
-
     results = []
-
     roth = initial_roth_balance
     trad = initial_trad_balance
+    prev_trad = initial_trad_balance
 
     for age in range(start_age, end_age + 1):
 
         married = age < spouse_death_age
-        filing = "married" if married else "single"
-
-        brackets = married_brackets if married else single_brackets
-        deduction = married_deduction if married else single_deduction
+        status = "married" if married else "single"
         ss = married_ss_income if married else single_ss_income
 
-        # Grow balances
+        brackets = married_brackets if married else single_brackets
+        deduction = 29200 if married else 14600
+
+        limit = brackets[2][1] if strategy == "A" else brackets[3][1]
+
+        # Grow
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
 
-        # RMD FIRST (CRITICAL FIX)
-        rmd = calculate_rmd(trad, age)
-        trad_withdraw = min(rmd, trad)
-        trad -= trad_withdraw
+        # -------------------------
+        # STEP 1: RMD (MANDATORY)
+        # -------------------------
+        rmd = calculate_rmd(prev_trad, age) if include_rmd else 0
+        rmd_taken = min(rmd, trad)
 
-        # Determine target withdrawal
-        target = (roth + trad) * withdrawal_rate
+        trad -= rmd_taken  # MUST leave account
 
-        # Fill up to tax bracket
-        limit = brackets[2][1] if strategy == "A" else brackets[3][1]
+        # -------------------------
+        # STEP 2: SPENDING NEED
+        # -------------------------
+        spending_target = (trad + roth) * withdrawal_rate
+        remaining_spending = max(0, spending_target - rmd_taken)
 
-        low, high = 0, 500000
+        # -------------------------
+        # STEP 3: OPTIMIZE ADDITIONAL TRAD
+        # -------------------------
+        low, high = 0, 1_000_000
         best_extra = 0
 
         for _ in range(20):
             mid = (low + high) / 2
-            t_ss = calculate_taxable_ss(trad_withdraw + mid, pension_income, ss, filing)
-            taxable = trad_withdraw + mid + pension_income + t_ss - deduction
 
-            if taxable <= limit:
+            test_trad = rmd_taken + mid
+
+            t_ss = calculate_taxable_ss(test_trad, pension_income, ss, status)
+            t_income = max(0, test_trad + pension_income + t_ss - deduction)
+
+            if t_income <= limit:
                 best_extra = mid
                 low = mid
             else:
@@ -148,39 +153,56 @@ def simulate_retirement(
         extra_trad = min(best_extra, trad)
         trad -= extra_trad
 
-        trad_total = trad_withdraw + extra_trad
+        total_trad = rmd_taken + extra_trad
 
-        # Roth if needed
-        roth_withdraw = 0
-        if trad_total < target:
-            roth_withdraw = min(target - trad_total, roth)
-            roth -= roth_withdraw
+        # -------------------------
+        # STEP 4: ROTH FOR SPENDING
+        # -------------------------
+        roth_used = min(remaining_spending, roth)
+        roth -= roth_used
 
-        # Taxes
-        t_ss = calculate_taxable_ss(trad_total, pension_income, ss, filing)
-        taxable_income = max(0, trad_total + pension_income + t_ss - deduction)
+        # -------------------------
+        # STEP 5: TAXES
+        # -------------------------
+        taxable_ss = calculate_taxable_ss(total_trad, pension_income, ss, status)
+        taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
+
         taxes = calculate_tax(taxable_income, brackets)
 
-        # Medicare (includes ALL income)
-        magi = trad_total + pension_income + ss
-        medicare = calculate_medicare(magi, filing, age)
+        # -------------------------
+        # STEP 6: MEDICARE (MAGI)
+        # -------------------------
+        magi = total_trad + pension_income + taxable_ss
+        medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
 
-        total_income = trad_total + roth_withdraw + ss + pension_income
-        net = total_income - taxes - medicare
+        # -------------------------
+        # STEP 7: RMD PENALTY
+        # -------------------------
+        shortfall = max(0, rmd - total_trad)
+        penalty = shortfall * 0.25  # SECURE 2.0 simplified
+
+        # -------------------------
+        # FINAL
+        # -------------------------
+        total_income = total_trad + roth_used + ss + pension_income
+        net_income = total_income - (taxes + medicare + penalty)
+
+        prev_trad = trad
 
         results.append({
             "Age": age,
-            "Filing Status": filing,
+            "Filing Status": status,
             "Social Security": ss,
             "Pension": pension_income,
-            "Traditional Withdrawal": trad_total,
-            "Roth Withdrawal": roth_withdraw,
-            "Roth Balance": roth,
+            "Traditional Withdrawal": total_trad,
+            "Roth Withdrawal": roth_used,
             "Traditional Balance": trad,
+            "Roth Balance": roth,
             "RMD Required": rmd,
+            "RMD Penalty": penalty,
             "Taxes": taxes,
             "Medicare Cost": medicare,
-            "Net Income": net
+            "Net Income": net_income
         })
 
     return results
