@@ -433,6 +433,10 @@
                                 <span class="result-value" id="medicareA">-</span>
                             </div>
                             <div class="result-row">
+                                <span class="result-label">Total Conversions:</span>
+                                <span class="result-value" id="conversionsA">-</span>
+                            </div>
+                            <div class="result-row">
                                 <span class="result-label">Total Expenses:</span>
                                 <span class="result-value" id="expensesA">-</span>
                             </div>
@@ -452,6 +456,10 @@
                             <div class="result-row">
                                 <span class="result-label">Total Medicare:</span>
                                 <span class="result-value" id="medicareB">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">Total Conversions:</span>
+                                <span class="result-value" id="conversionsB">-</span>
                             </div>
                             <div class="result-row">
                                 <span class="result-label">Total Expenses:</span>
@@ -503,6 +511,7 @@
                                         <th>Pension</th>
                                         <th>Trad W/D</th>
                                         <th>Roth W/D</th>
+                                        <th>Roth Conv</th>
                                         <th>Trad Bal</th>
                                         <th>Roth Bal</th>
                                         <th>RMD</th>
@@ -631,23 +640,26 @@ results_b = simulate_retirement(**params, strategy="B")
 def summarize(results):
     total_taxes = sum(r["Taxes"] for r in results)
     total_medicare = sum(r["Medicare Cost"] for r in results)
+    total_conversions = sum(r["Roth Conversion"] for r in results)
     total_expenses = total_taxes + total_medicare
     ending_balance = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
-    return total_taxes, total_medicare, total_expenses, ending_balance
+    return total_taxes, total_medicare, total_conversions, total_expenses, ending_balance
 
-tax_a, medicare_a, expenses_a, bal_a = summarize(results_a)
-tax_b, medicare_b, expenses_b, bal_b = summarize(results_b)
+tax_a, medicare_a, conv_a, expenses_a, bal_a = summarize(results_a)
+tax_b, medicare_b, conv_b, expenses_b, bal_b = summarize(results_b)
 
 output = {
     "scenarioA": {
         "taxes": tax_a,
         "medicare": medicare_a,
+        "conversions": conv_a,
         "expenses": expenses_a,
         "balance": bal_a
     },
     "scenarioB": {
         "taxes": tax_b,
         "medicare": medicare_b,
+        "conversions": conv_b,
         "expenses": expenses_b,
         "balance": bal_b
     },
@@ -680,11 +692,13 @@ output
             // Update summary
             document.getElementById('taxA').textContent = formatCurrency(a.taxes);
             document.getElementById('medicareA').textContent = formatCurrency(a.medicare);
+            document.getElementById('conversionsA').textContent = formatCurrency(a.conversions);
             document.getElementById('expensesA').textContent = formatCurrency(a.expenses);
             document.getElementById('balanceA').textContent = formatCurrency(a.balance);
 
             document.getElementById('taxB').textContent = formatCurrency(b.taxes);
             document.getElementById('medicareB').textContent = formatCurrency(b.medicare);
+            document.getElementById('conversionsB').textContent = formatCurrency(b.conversions);
             document.getElementById('expensesB').textContent = formatCurrency(b.expenses);
             document.getElementById('balanceB').textContent = formatCurrency(b.balance);
 
@@ -713,6 +727,7 @@ output
                     <td>${formatCurrency(row["Pension"])}</td>
                     <td>${formatCurrency(row["Traditional Withdrawal"])}</td>
                     <td>${formatCurrency(row["Roth Withdrawal"])}</td>
+                    <td>${formatCurrency(row["Roth Conversion"])}</td>
                     <td>${formatCurrency(row["Traditional Balance"])}</td>
                     <td>${formatCurrency(row["Roth Balance"])}</td>
                     <td>${formatCurrency(row["RMD Required"])}</td>
@@ -737,6 +752,9 @@ output
             const balanceA = resultsA.map(r => r["Roth Balance"] + r["Traditional Balance"]);
             const balanceB = resultsB.map(r => r["Roth Balance"] + r["Traditional Balance"]);
 
+            const conversionA = resultsA.map(r => r["Roth Conversion"]);
+            const conversionB = resultsB.map(r => r["Roth Conversion"]);
+
             if (chart) {
                 chart.destroy();
             }
@@ -747,21 +765,39 @@ output
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Scenario A: Stop at 22% (Solid Blue)',
+                            label: 'Scenario A: Total Balance',
                             data: balanceA,
                             borderColor: '#4299e1',
                             backgroundColor: 'rgba(66, 153, 225, 0.1)',
                             fill: true,
-                            tension: 0.1
+                            tension: 0.1,
+                            yAxisID: 'y'
                         },
                         {
-                            label: 'Scenario B: Stop at 24% (Dashed Orange)',
+                            label: 'Scenario B: Total Balance',
                             data: balanceB,
                             borderColor: '#ed8936',
                             backgroundColor: 'rgba(237, 137, 54, 0.1)',
                             borderDash: [5, 5],
                             fill: true,
-                            tension: 0.1
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Scenario A: Roth Conversion',
+                            data: conversionA,
+                            borderColor: '#48bb78',
+                            backgroundColor: '#48bb78',
+                            type: 'bar',
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'Scenario B: Roth Conversion',
+                            data: conversionB,
+                            borderColor: '#38b2ac',
+                            backgroundColor: '#38b2ac',
+                            type: 'bar',
+                            yAxisID: 'y1'
                         }
                     ]
                 },
@@ -770,7 +806,32 @@ output
                     maintainAspectRatio: false,
                     scales: {
                         y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
                             beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Total Balance ($)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value);
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Annual Conversion ($)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            },
                             ticks: {
                                 callback: function(value) {
                                     return formatCurrency(value);

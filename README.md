@@ -12,6 +12,7 @@ The simulator models year-by-year retirement scenarios with realistic tax calcul
 
 ## Features
 
+- 🔄 **Roth Conversion Ladder**: Automatically converts surplus Traditional IRA funds to Roth within the target tax bracket.
 - 📊 **Progressive Tax Calculation**: Uses actual federal tax brackets (2024).
 - 🔄 **Social Security Taxation**: Models provisional income-based taxation (0%, 50%, or 85%).
 - 🏥 **Medicare IRMAA**: Calculates Medicare Part B premiums based on income tiers.
@@ -67,14 +68,16 @@ The simulator uses 2024 federal tax brackets, applying income progressively from
 
 ### Withdrawal Strategies
 
+The simulator uses a **Stable Net Spending Goal** based on your initial portfolio balance and withdrawal rate.
+
 **Strategy A (Conservative)**
-- Maximizes withdrawals while staying within the 22% bracket.
-- Uses binary search to find the optimal Traditional withdrawal amount.
-- Remaining need filled from Roth.
+- Withdraws from Traditional IRA up to the top of the **22% bracket**.
+- Surplus net income is **converted to Roth**.
+- Shortfalls are bridged using Roth withdrawals.
 
 **Strategy B (Aggressive)**
-- Maximizes withdrawals up to the 24% bracket.
-- Generally results in faster Traditional account depletion but higher initial taxes.
+- Maximizes withdrawals up to the **24% bracket**.
+- Aggressively converts Traditional funds to Roth early in retirement to reduce future RMD liability.
 
 ## File Structure
 
