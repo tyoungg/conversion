@@ -681,14 +681,17 @@ output
             document.getElementById('balanceB').textContent = formatCurrency(b.balance);
 
             // Differences
-            document.getElementById('taxDiff').textContent = 
-                formatCurrency(a.taxes - b.taxes) + (a.taxes < b.taxes ? ' (A saves)' : ' (B saves)');
-            document.getElementById('medicareDiff').textContent = 
-                formatCurrency(a.medicare - b.medicare) + (a.medicare < b.medicare ? ' (A saves)' : ' (B saves)');
-            document.getElementById('expenseDiff').textContent = 
-                formatCurrency(a.expenses - b.expenses) + (a.expenses < b.expenses ? ' (A saves)' : ' (B saves)');
-            document.getElementById('balanceDiff').textContent = 
-                formatCurrency(a.balance - b.balance);
+            const setDiff = (id, diff, inverse = false) => {
+                const el = document.getElementById(id);
+                const isGood = inverse ? diff > 0 : diff < 0;
+                el.textContent = formatCurrency(diff) + (isGood ? (diff === 0 ? '' : ' (Better)') : ' (Worse)');
+                el.style.color = diff === 0 ? '#333' : (isGood ? '#2f855a' : '#c53030');
+            };
+
+            setDiff('taxDiff', a.taxes - b.taxes);
+            setDiff('medicareDiff', a.medicare - b.medicare);
+            setDiff('expenseDiff', a.expenses - b.expenses);
+            setDiff('balanceDiff', a.balance - b.balance, true);
 
             // Update table with Scenario A data
             const tbody = document.getElementById('tableBody');
