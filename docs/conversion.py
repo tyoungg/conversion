@@ -86,6 +86,10 @@ def calculate_rmd(account_balance, age, filing_status):
     if age < RMD_START_AGE:
         return 0
 
+    # Return 0 if account balance is depleted
+    if account_balance <= 0:
+        return 0
+
     rmd_divisors = {
         73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9,
         78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
@@ -145,6 +149,7 @@ def simulate_retirement(
     roth_balance = initial_roth_balance
     trad_balance = initial_trad_balance
     prev_trad_balance = initial_trad_balance
+    rmd_shortfall_total = 0  # Track total RMD shortfalls
 
     for age in range(start_age, end_age + 1):
         is_married = age < spouse_death_age
@@ -219,8 +224,13 @@ def simulate_retirement(
         else:
             net_income = total_net
 
-        trad_balance -= actual_trad
-        roth_balance -= actual_roth
+        # Track RMD shortfall if account balance is insufficient
+        rmd_shortfall = max(0, rmd - actual_trad)
+        rmd_shortfall_total += rmd_shortfall
+
+        # Ensure balances never go negative
+        trad_balance = max(0, trad_balance - actual_trad)
+        roth_balance = max(0, roth_balance - actual_roth)
         prev_trad_balance = trad_balance
 
         results.append({
@@ -233,12 +243,13 @@ def simulate_retirement(
             "Traditional Balance": trad_balance,
             "Roth Balance": roth_balance,
             "RMD Required": rmd,
+            "RMD Shortfall": rmd_shortfall,
             "Taxes": total_taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income
         })
 
-    return results
+    return results, rmd_shortfall_total
 
 
 if __name__ == "__main__":
@@ -257,18 +268,18 @@ if __name__ == "__main__":
         "include_medicare": True
     }
 
-    results_a = simulate_retirement(**test_params, strategy="A")
-    results_b = simulate_retirement(**test_params, strategy="B")
+    results_a, shortfall_a = simulate_retirement(**test_params, strategy="A")
+    results_b, shortfall_b = simulate_retirement(**test_params, strategy="B")
 
-    def summarize(results):
+    def summarize(results, rmd_shortfall_total):
         total_taxes = sum(r["Taxes"] for r in results)
         total_medicare = sum(r["Medicare Cost"] for r in results)
         total_expenses = total_taxes + total_medicare
         ending_balance = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
         return total_taxes, total_medicare, total_expenses, ending_balance
 
-    tax_a, medicare_a, expenses_a, bal_a = summarize(results_a)
-    tax_b, medicare_b, expenses_b, bal_b = summarize(results_b)
+    tax_a, medicare_a, expenses_a, bal_a = summarize(results_a, shortfall_a)
+    tax_b, medicare_b, expenses_b, bal_b = summarize(results_b, shortfall_b)
 
     print("=" * 80)
     print("RETIREMENT STRATEGY COMPARISON")
@@ -278,10 +289,12 @@ if __name__ == "__main__":
     print(f"  Total Medicare:     ${medicare_a:>15,.2f}")
     print(f"  Total Expenses:     ${expenses_a:>15,.2f}")
     print(f"  Ending Balance:     ${bal_a:>15,.2f}")
+    print(f"  Total RMD Shortfall:${shortfall_a:>15,.2f}")
 
     print(f"\nScenario B (Stop at 24%):")
     print(f"  Total Taxes:        ${tax_b:>15,.2f}")
     print(f"  Total Medicare:     ${medicare_b:>15,.2f}")
     print(f"  Total Expenses:     ${expenses_b:>15,.2f}")
     print(f"  Ending Balance:     ${bal_b:>15,.2f}")
+    print(f"  Total RMD Shortfall:${shortfall_b:>15,.2f}")
     print("=" * 80)
