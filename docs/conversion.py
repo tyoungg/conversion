@@ -124,6 +124,7 @@ def simulate_retirement(
     include_rmd=True,
     include_medicare=True
 ):
+    # Set defaults for brackets and deductions
     if married_brackets is None:
         married_brackets = [
             (0, 22000, 0.10),
@@ -159,7 +160,7 @@ def simulate_retirement(
 
         rmd = calculate_rmd(prev_trad_balance, age, filing_status) if include_rmd else 0
 
-        # Grow accounts
+        # Grow accounts at start of year
         roth_balance *= (1 + growth_rate)
         trad_balance *= (1 + growth_rate)
 
@@ -176,40 +177,51 @@ def simulate_retirement(
             else:
                 high = mid
 
-        # 2. Withdrawal Strategy
-        # Spending goal tracks current portfolio balance (Traditional + Roth)
-        spending_goal = (trad_balance + roth_balance) * withdrawal_rate
+        # 2. Withdrawal & Conversion Strategy
+        # Portfolio spending goal (Gross)
+        portfolio_wd_goal = (trad_balance + roth_balance) * withdrawal_rate
 
-        # Priority 1: Fill the tax bracket from Traditional IRA (Optimization)
-        # and ensure RMD is met.
-        actual_trad = max(rmd, best_w_trad_limit)
-        actual_trad = min(actual_trad, trad_balance)
+        # Target Trad withdrawal for spending (at least RMD, but try to meet goal)
+        trad_for_spending = min(max(rmd, portfolio_wd_goal), trad_balance)
 
-        # Priority 2: If we haven't met our spending goal, take from Roth
-        current_wd = actual_trad
-        needed_from_roth = max(0, spending_goal - current_wd)
-        actual_roth = min(needed_from_roth, roth_balance)
-        current_wd += actual_roth
+        # Actual Trad: might take even more to fill the bracket (Optimization)
+        actual_trad = min(max(trad_for_spending, best_w_trad_limit), trad_balance)
 
-        # Priority 3: If spending goal STILL not met and there's Trad left, take more from Trad
-        still_needed = max(0, spending_goal - current_wd)
-        if still_needed > 0 and (trad_balance - actual_trad) > 0:
-            extra = min(still_needed, trad_balance - actual_trad)
-            actual_trad += extra
+        actual_roth = 0
+        if actual_trad < portfolio_wd_goal:
+            # Trad was not enough to meet spending goal even after filling bracket
+            actual_roth = min(portfolio_wd_goal - actual_trad, roth_balance)
+
+        # Calculate Taxes & Medicare on total Trad withdrawal
+        taxable_ss = calculate_taxable_ss(actual_trad, pension_income, ss_income, filing_status)
+        taxable_income = max(0, actual_trad + pension_income + taxable_ss - deduction)
+        total_taxes = calculate_tax(taxable_income, brackets)
+        magi = actual_trad + pension_income + taxable_ss
+        medicare = calculate_medicare_premium(magi, filing_status, age) if include_medicare else 0
+
+        total_gross = actual_trad + actual_roth + ss_income + pension_income
+        total_net = total_gross - (total_taxes + medicare)
+
+        # Optimization: Convert surplus to Roth
+        # Surplus is anything withdrawn beyond what was needed for spending goal (or RMD)
+        if actual_trad > trad_for_spending:
+            # Calculate taxes if we had only withdrawn for spending
+            taxable_ss_no_conv = calculate_taxable_ss(trad_for_spending, pension_income, ss_income, filing_status)
+            taxable_income_no_conv = max(0, trad_for_spending + pension_income + taxable_ss_no_conv - deduction)
+            taxes_no_conv = calculate_tax(taxable_income_no_conv, brackets)
+
+            # Net income if we only did spending
+            net_spending = (trad_for_spending + actual_roth + ss_income + pension_income) - (taxes_no_conv + medicare)
+
+            conversion_net = max(0, total_net - net_spending)
+            roth_balance += conversion_net
+            net_income = total_net - conversion_net
+        else:
+            net_income = total_net
 
         trad_balance -= actual_trad
         roth_balance -= actual_roth
         prev_trad_balance = trad_balance
-
-        # Taxes & Medicare
-        taxable_ss = calculate_taxable_ss(actual_trad, pension_income, ss_income, filing_status)
-        taxable_income = max(0, actual_trad + pension_income + taxable_ss - deduction)
-        taxes = calculate_tax(taxable_income, brackets)
-        magi = actual_trad + pension_income + taxable_ss
-        medicare = calculate_medicare_premium(magi, filing_status, age) if include_medicare else 0
-
-        total_income = ss_income + pension_income + actual_trad + actual_roth
-        net_income = total_income - (taxes + medicare)
 
         results.append({
             "Age": age,
@@ -221,7 +233,7 @@ def simulate_retirement(
             "Traditional Balance": trad_balance,
             "Roth Balance": roth_balance,
             "RMD Required": rmd,
-            "Taxes": taxes,
+            "Taxes": total_taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income
         })
