@@ -41,3 +41,19 @@ test('Retirement calculator simulation runs and displays comparison results', as
   const rows = page.locator('#tableBody tr');
   await expect(rows).toHaveCount(31); // 95 - 65 + 1
 });
+
+test('Form submits on Enter key', async ({ page }) => {
+  await page.goto('http://localhost:8080/index.html');
+
+  // Fill a field and press Enter
+  await page.fill('#startAge', '60');
+  await page.press('#startAge', 'Enter');
+
+  // Verify results container is visible
+  await expect(page.locator('#resultsContent')).toBeVisible({ timeout: 20000 });
+
+  // Verify age starts at 60 in the table
+  await page.click('button:has-text("Year-by-Year")');
+  const firstRowAge = await page.locator('#tableBody tr:first-child td:first-child').innerText();
+  expect(firstRowAge).toBe('60');
+});
