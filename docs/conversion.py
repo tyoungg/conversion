@@ -206,3 +206,35 @@ def simulate_retirement(
         })
 
     return results
+
+
+if __name__ == "__main__":
+    # Default test parameters
+    test_params = {
+        "start_age": 65,
+        "end_age": 95,
+        "spouse_death_age": 85,
+        "initial_roth_balance": 200000,
+        "initial_trad_balance": 1500000,
+        "growth_rate": 0.05,
+        "married_ss_income": 40000,
+        "single_ss_income": 25000,
+        "pension_income": 0,
+        "withdrawal_rate": 0.12
+    }
+
+    print("Running Retirement Simulation...")
+    print("-" * 40)
+
+    for strat in ["A", "B"]:
+        results = simulate_retirement(**test_params, strategy=strat)
+        total_tax = sum(r["Taxes"] for r in results)
+        total_medicare = sum(r["Medicare Cost"] for r in results)
+        ending_bal = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
+
+        strategy_name = "Stop at 22%" if strat == "A" else "Stop at 24%"
+        print(f"Scenario {strat} ({strategy_name}):")
+        print(f"  Total Taxes:    ${total_tax:,.2f}")
+        print(f"  Total Medicare: ${total_medicare:,.2f}")
+        print(f"  Ending Balance: ${ending_bal:,.2f}")
+        print("-" * 40)
