@@ -28,8 +28,15 @@ test('Retirement calculator simulation runs and displays comparison results', as
   // Verify Comparison Summary
   await expect(page.locator('#taxA')).not.toHaveText('-');
   await expect(page.locator('#taxB')).not.toHaveText('-');
+  await expect(page.locator('#conversionsA')).not.toHaveText('-');
+  await expect(page.locator('#conversionsB')).not.toHaveText('-');
   await expect(page.locator('#balanceA')).not.toHaveText('-');
   await expect(page.locator('#balanceB')).not.toHaveText('-');
+
+  // Verify Scenario B has conversions with default parameters while A might not
+  const convBText = await page.locator('#conversionsB').innerText();
+  const convBValue = parseFloat(convBText.replace(/[^0-9.-]+/g,""));
+  expect(convBValue).toBeGreaterThan(0);
 
   // Switch to Charts tab
   await page.click('button:has-text("Charts")');
@@ -40,6 +47,10 @@ test('Retirement calculator simulation runs and displays comparison results', as
   await page.click('button:has-text("Year-by-Year")');
   const rows = page.locator('#tableBody tr');
   await expect(rows).toHaveCount(31); // 95 - 65 + 1
+
+  // Verify Roth Conv column is present and has data
+  const rothConvVal = await page.locator('#tableBody tr:first-child td:nth-child(7)').innerText();
+  expect(rothConvVal).toContain('$');
 });
 
 test('Form submits on Enter key', async ({ page }) => {

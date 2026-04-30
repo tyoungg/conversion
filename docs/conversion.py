@@ -101,8 +101,12 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
-    for age in range(start_age, end_age + 1):
+    # Stable Spending Target (Net)
+    # Note: We derive this from the initial balances and withdrawal rate
+    # This remains the annual goal for the entire simulation
+    annual_spending_goal = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
 
+    for age in range(start_age, end_age + 1):
         married = age < spouse_death_age
         status = "married" if married else "single"
         ss = married_ss_income if married else single_ss_income
@@ -110,82 +114,88 @@ def simulate_retirement(
         brackets = married_brackets if married else single_brackets
         deduction = 29200 if married else 14600
 
-        limit = brackets[2][1] if strategy == "A" else brackets[3][1]
+        # Strategy A (22%) or B (24%)
+        bracket_limit = brackets[2][1] if strategy == "A" else brackets[3][1]
 
-        # Grow
+        # Grow Accounts
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
 
-        # -------------------------
-        # STEP 1: RMD (MANDATORY)
-        # -------------------------
+        # 1. RMD (Mandatory)
         rmd = calculate_rmd(prev_trad, age) if include_rmd else 0
         rmd_taken = min(rmd, trad)
+        trad -= rmd_taken
 
-        trad -= rmd_taken  # MUST leave account
-
-        # -------------------------
-        # STEP 2: SPENDING NEED
-        # -------------------------
-        spending_target = (trad + roth) * withdrawal_rate
-        remaining_spending = max(0, spending_target - rmd_taken)
-
-        # -------------------------
-        # STEP 3: OPTIMIZE ADDITIONAL TRAD
-        # -------------------------
-        low, high = 0, 1_000_000
+        # 2. Optimized Traditional Withdrawal (Targeting Bracket Limit)
+        # We want to see how much we can withdraw from Trad without exceeding bracket_limit
+        low, high = 0, trad
         best_extra = 0
-
         for _ in range(20):
             mid = (low + high) / 2
-
             test_trad = rmd_taken + mid
-
             t_ss = calculate_taxable_ss(test_trad, pension_income, ss, status)
             t_income = max(0, test_trad + pension_income + t_ss - deduction)
-
-            if t_income <= limit:
+            if t_income <= bracket_limit:
                 best_extra = mid
                 low = mid
             else:
                 high = mid
 
-        extra_trad = min(best_extra, trad)
+        extra_trad = best_extra
         trad -= extra_trad
-
         total_trad = rmd_taken + extra_trad
 
-        # -------------------------
-        # STEP 4: ROTH FOR SPENDING
-        # -------------------------
-        roth_used = min(remaining_spending, roth)
-        roth -= roth_used
-
-        # -------------------------
-        # STEP 5: TAXES
-        # -------------------------
+        # 3. Calculate Taxes and Medicare on this Optimized Trad Amount
         taxable_ss = calculate_taxable_ss(total_trad, pension_income, ss, status)
         taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
-
         taxes = calculate_tax(taxable_income, brackets)
 
-        # -------------------------
-        # STEP 6: MEDICARE (MAGI)
-        # -------------------------
         magi = total_trad + pension_income + taxable_ss
         medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
 
-        # -------------------------
-        # STEP 7: RMD PENALTY
-        # -------------------------
-        shortfall = max(0, rmd - total_trad)
-        penalty = shortfall * 0.25  # SECURE 2.0 simplified
+        # 4. Determine Net Available vs Spending Goal
+        # Net from Trad + SS + Pension
+        net_available = (total_trad + ss + pension_income) - (taxes + medicare)
 
-        # -------------------------
-        # FINAL
-        # -------------------------
-        total_income = total_trad + roth_used + ss + pension_income
-        net_income = total_income - (taxes + medicare + penalty)
+        roth_conversion = 0
+        roth_withdrawal = 0
+
+        if net_available > annual_spending_goal:
+            # We have excess! This is the "Conversion" part.
+            # We move the excess net income into the Roth IRA.
+            roth_conversion = net_available - annual_spending_goal
+            roth += roth_conversion
+            net_income = annual_spending_goal
+        else:
+            # We have a shortfall. Use Roth to bridge it.
+            shortfall = annual_spending_goal - net_available
+            roth_withdrawal = min(shortfall, roth)
+            roth -= roth_withdrawal
+
+            net_income = net_available + roth_withdrawal
+
+            # If still short and Roth is empty, we must take more from Trad (ignoring brackets)
+            final_shortfall = annual_spending_goal - net_income
+            if final_shortfall > 0 and trad > 0:
+                # This is a bit of a recursive problem because taking more Trad increases taxes.
+                # Simplified: take enough Trad to cover shortfall + estimated tax (roughly 25-30%)
+                emergency_trad = min(trad, final_shortfall / 0.7)
+                trad -= emergency_trad
+                total_trad += emergency_trad
+
+                # Recalculate taxes/medicare with emergency withdrawal
+                taxable_ss = calculate_taxable_ss(total_trad, pension_income, ss, status)
+                taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
+                taxes = calculate_tax(taxable_income, brackets)
+                magi = total_trad + pension_income + taxable_ss
+                medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
+
+                net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare)
+
+        # 5. RMD Penalty
+        shortfall_rmd = max(0, rmd - total_trad)
+        penalty = shortfall_rmd * 0.25
+        net_income -= penalty
 
         prev_trad = trad
 
@@ -195,7 +205,8 @@ def simulate_retirement(
             "Social Security": ss,
             "Pension": pension_income,
             "Traditional Withdrawal": total_trad,
-            "Roth Withdrawal": roth_used,
+            "Roth Withdrawal": roth_withdrawal,
+            "Roth Conversion": roth_conversion,
             "Traditional Balance": trad,
             "Roth Balance": roth,
             "RMD Required": rmd,
@@ -230,11 +241,13 @@ if __name__ == "__main__":
         results = simulate_retirement(**test_params, strategy=strat)
         total_tax = sum(r["Taxes"] for r in results)
         total_medicare = sum(r["Medicare Cost"] for r in results)
+        total_conversions = sum(r["Roth Conversion"] for r in results)
         ending_bal = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
 
         strategy_name = "Stop at 22%" if strat == "A" else "Stop at 24%"
         print(f"Scenario {strat} ({strategy_name}):")
-        print(f"  Total Taxes:    ${total_tax:,.2f}")
-        print(f"  Total Medicare: ${total_medicare:,.2f}")
-        print(f"  Ending Balance: ${ending_bal:,.2f}")
+        print(f"  Total Taxes:       ${total_tax:,.2f}")
+        print(f"  Total Medicare:    ${total_medicare:,.2f}")
+        print(f"  Total Conversions: ${total_conversions:,.2f}")
+        print(f"  Ending Balance:    ${ending_bal:,.2f}")
         print("-" * 40)
