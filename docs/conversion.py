@@ -212,15 +212,15 @@ if __name__ == "__main__":
     # Default test parameters
     test_params = {
         "start_age": 65,
-        "end_age": 95,
-        "spouse_death_age": 85,
-        "initial_roth_balance": 200000,
+        "end_age": 91,
+        "spouse_death_age": 79,
+        "initial_roth_balance": 2000000,
         "initial_trad_balance": 1500000,
         "growth_rate": 0.05,
         "married_ss_income": 40000,
         "single_ss_income": 25000,
-        "pension_income": 0,
-        "withdrawal_rate": 0.12
+        "pension_income": 30000,
+        "withdrawal_rate": 0.05
     }
 
     print("Running Retirement Simulation...")
