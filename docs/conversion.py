@@ -12,8 +12,8 @@ def calculate_tax(taxable_income, brackets):
     return tax
 
 
-def calculate_taxable_ss(trad_income, other_income, ss_income, filing_status):
-    provisional = trad_income + other_income + 0.5 * ss_income
+def calculate_taxable_ss(trad_income, pension_income, ss_income, filing_status):
+    provisional = trad_income + pension_income + 0.5 * ss_income
 
     if filing_status == "married":
         t1, t2 = 32000, 44000
@@ -28,7 +28,10 @@ def calculate_taxable_ss(trad_income, other_income, ss_income, filing_status):
         return 0.85 * ss_income
 
 
-def calculate_medicare_premium(magi, filing_status, age):
+# -----------------------------
+# MEDICARE
+# -----------------------------
+def calculate_medicare(magi, filing_status, age):
     if age < 65:
         return 0
 
@@ -37,32 +40,36 @@ def calculate_medicare_premium(magi, filing_status, age):
     else:
         brackets = [97000, 123000, 153000, 183000]
 
-    premiums = [164.90, 230.80, 321.80, 412.70, 503.70]
+    premiums = [164.9, 230.8, 321.8, 412.7, 503.7]
 
-    for i, b in enumerate(brackets):
-        if magi <= b:
+    for i, limit in enumerate(brackets):
+        if magi <= limit:
             return premiums[i] * 12
+
     return premiums[-1] * 12
 
 
+# -----------------------------
+# RMD
+# -----------------------------
 def calculate_rmd(balance, age):
     if age < 73 or balance <= 0:
         return 0
 
     divisors = {
-        73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9,
-        78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
-        83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4,
-        88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8,
-        93: 10.1, 94: 9.5, 95: 8.9
+        73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7,
+        77: 22.9, 78: 22.0, 79: 21.1, 80: 20.2,
+        81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8,
+        85: 16.0, 86: 15.2, 87: 14.4, 88: 13.7,
+        89: 12.9, 90: 12.2
     }
 
-    divisor = divisors.get(age, 8.0)
+    divisor = divisors.get(age, 10)
     return balance / divisor
 
 
 # -----------------------------
-# SIMULATION ENGINE
+# MAIN SIM
 # -----------------------------
 def simulate_retirement(
     start_age,
@@ -75,178 +82,105 @@ def simulate_retirement(
     single_ss_income,
     pension_income,
     withdrawal_rate,
-    married_brackets=None,
-    single_brackets=None,
-    married_deduction=29200,
-    single_deduction=14600,
-    strategy="B",
-    include_rmd=True,
-    include_medicare=True
+    strategy="B"
 ):
 
-    if married_brackets is None:
-        married_brackets = [
-            (0, 22000, 0.10),
-            (22000, 89450, 0.12),
-            (89450, 190750, 0.22),
-            (190750, 364200, 0.24),
-        ]
+    married_brackets = [
+        (0, 22000, 0.10),
+        (22000, 89450, 0.12),
+        (89450, 190750, 0.22),
+        (190750, 364200, 0.24),
+    ]
 
-    if single_brackets is None:
-        single_brackets = [
-            (0, 11000, 0.10),
-            (11000, 44725, 0.12),
-            (44725, 95375, 0.22),
-            (95375, 182100, 0.24),
-        ]
+    single_brackets = [
+        (0, 11000, 0.10),
+        (11000, 44725, 0.12),
+        (44725, 95375, 0.22),
+        (95375, 182100, 0.24),
+    ]
+
+    married_deduction = 29200
+    single_deduction = 14600
+
+    results = []
 
     roth = initial_roth_balance
     trad = initial_trad_balance
-    prev_trad = trad
-
-    results = []
-    total_rmd_penalty = 0
 
     for age in range(start_age, end_age + 1):
 
-        # Filing status
         married = age < spouse_death_age
         filing = "married" if married else "single"
+
         brackets = married_brackets if married else single_brackets
         deduction = married_deduction if married else single_deduction
         ss = married_ss_income if married else single_ss_income
 
-        # Growth
+        # Grow balances
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
 
-        # RMD
-        rmd = calculate_rmd(prev_trad, age) if include_rmd else 0
+        # RMD FIRST (CRITICAL FIX)
+        rmd = calculate_rmd(trad, age)
+        trad_withdraw = min(rmd, trad)
+        trad -= trad_withdraw
 
-        # Target bracket cap
-        cap_index = 2 if strategy == "A" else 3
-        tax_cap = brackets[cap_index][1] if len(brackets) > cap_index else 1e9
+        # Determine target withdrawal
+        target = (roth + trad) * withdrawal_rate
 
-        # Binary search for max trad income within cap
-        low, high = 0, trad
-        best = 0
+        # Fill up to tax bracket
+        limit = brackets[2][1] if strategy == "A" else brackets[3][1]
 
-        for _ in range(25):
+        low, high = 0, 500000
+        best_extra = 0
+
+        for _ in range(20):
             mid = (low + high) / 2
-            t_ss = calculate_taxable_ss(mid, pension_income, ss, filing)
-            taxable = max(0, mid + pension_income + t_ss - deduction)
+            t_ss = calculate_taxable_ss(trad_withdraw + mid, pension_income, ss, filing)
+            taxable = trad_withdraw + mid + pension_income + t_ss - deduction
 
-            if taxable <= tax_cap:
-                best = mid
+            if taxable <= limit:
+                best_extra = mid
                 low = mid
             else:
                 high = mid
 
-        # -------------------------
-        # 1. RMD DISTRIBUTION
-        # -------------------------
-        rmd_dist = min(rmd, trad)
-        trad -= rmd_dist
+        extra_trad = min(best_extra, trad)
+        trad -= extra_trad
 
-        # -------------------------
-        # 2. CONVERSION (fills bracket)
-        # -------------------------
-        remaining_space = max(0, best - rmd_dist)
-        conversion = min(remaining_space, trad)
-        trad -= conversion
-        roth += conversion
+        trad_total = trad_withdraw + extra_trad
 
-        # -------------------------
-        # 3. SPENDING
-        # -------------------------
-        portfolio = trad + roth
-        spend_goal = portfolio * withdrawal_rate
+        # Roth if needed
+        roth_withdraw = 0
+        if trad_total < target:
+            roth_withdraw = min(target - trad_total, roth)
+            roth -= roth_withdraw
 
-        trad_spend = min(spend_goal, trad)
-        trad -= trad_spend
-
-        remaining = spend_goal - trad_spend
-        roth_spend = min(remaining, roth)
-        roth -= roth_spend
-
-        # -------------------------
-        # TAXES
-        # -------------------------
-        trad_total = rmd_dist + conversion + trad_spend
-
-        taxable_ss = calculate_taxable_ss(trad_total, pension_income, ss, filing)
-        taxable_income = max(0, trad_total + pension_income + taxable_ss - deduction)
-
+        # Taxes
+        t_ss = calculate_taxable_ss(trad_total, pension_income, ss, filing)
+        taxable_income = max(0, trad_total + pension_income + t_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
 
-        # -------------------------
-        # RMD PENALTY
-        # -------------------------
-        shortfall = max(0, rmd - rmd_dist)
-        penalty = 0.25 * shortfall
-        total_rmd_penalty += penalty
+        # Medicare (includes ALL income)
+        magi = trad_total + pension_income + ss
+        medicare = calculate_medicare(magi, filing, age)
 
-        taxes += penalty
-
-        # -------------------------
-        # MEDICARE (MAGI includes conversion!)
-        # -------------------------
-        magi = trad_total + pension_income + taxable_ss
-        medicare = calculate_medicare_premium(magi, filing, age) if include_medicare else 0
-
-        # -------------------------
-        # INCOME
-        # -------------------------
-        gross = ss + pension_income + trad_total + roth_spend
-        net = gross - taxes - medicare
+        total_income = trad_total + roth_withdraw + ss + pension_income
+        net = total_income - taxes - medicare
 
         results.append({
             "Age": age,
             "Filing Status": filing,
-            "RMD": rmd,
-            "RMD Taken": rmd_dist,
-            "RMD Shortfall": shortfall,
-            "Conversion": conversion,
-            "Trad Spend": trad_spend,
-            "Roth Spend": roth_spend,
-            "Traditional Balance": trad,
+            "Social Security": ss,
+            "Pension": pension_income,
+            "Traditional Withdrawal": trad_total,
+            "Roth Withdrawal": roth_withdraw,
             "Roth Balance": roth,
+            "Traditional Balance": trad,
+            "RMD Required": rmd,
             "Taxes": taxes,
-            "Medicare": medicare,
+            "Medicare Cost": medicare,
             "Net Income": net
         })
 
-        prev_trad = trad
-
-    return results, total_rmd_penalty
-
-
-# -----------------------------
-# QUICK TEST
-# -----------------------------
-if __name__ == "__main__":
-
-    params = dict(
-        start_age=65,
-        end_age=95,
-        spouse_death_age=85,
-        initial_roth_balance=200000,
-        initial_trad_balance=1500000,
-        growth_rate=0.05,
-        married_ss_income=40000,
-        single_ss_income=25000,
-        pension_income=0,
-        withdrawal_rate=0.12
-    )
-
-    a, pen_a = simulate_retirement(**params, strategy="A")
-    b, pen_b = simulate_retirement(**params, strategy="B")
-
-    def summarize(r, pen):
-        taxes = sum(x["Taxes"] for x in r)
-        medicare = sum(x["Medicare"] for x in r)
-        end_bal = r[-1]["Traditional Balance"] + r[-1]["Roth Balance"]
-        return taxes, medicare, end_bal, pen
-
-    print("A:", summarize(a, pen_a))
-    print("B:", summarize(b, pen_b))
+    return results
