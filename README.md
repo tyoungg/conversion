@@ -9,13 +9,13 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
     - **Scenario A:** Optimized to fill the **22%** federal tax bracket.
     - **Scenario B:** Optimized to fill the **24%** federal tax bracket.
     - *Logic:* The engine maximizes Traditional IRA withdrawals up to the target bracket. Any net income generated beyond the spending goal is automatically converted to the Roth IRA.
-- **Precise 2024 Tax Engine:**
+- **Precise 2025 Tax Engine:**
     - Uses full 7-tier federal tax brackets.
     - Includes the **IRS tiered Social Security taxation formula** (0%, 50%, and 85% tiers).
-    - Automatically applies **Additional Standard Deductions** for taxpayers age 65 and older ($1,950 for Single, $3,100 for Married).
+    - Automatically applies **Additional Standard Deductions** for taxpayers age 65 and older ($2,000 for Single, $3,200 for Married).
     - Models the **"Widow's Penalty"**: Transitioning from Married to Single filing status (brackets, deductions, and SS benefits) when a spouse passes.
 - **Medicare IRMAA Modeling:**
-    - Calculates 2024 Medicare Part B premiums.
+    - Calculates 2025 Medicare Part B premiums.
     - Factors in IRMAA surcharges based on MAGI.
     - Correctly doubles premiums for married couples.
 - **Account Buffering:**
@@ -45,10 +45,10 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
     4.  Roth Buffer (to reach spending goal).
     5.  Excess Traditional (if goal still not met).
 
-## 📊 2024 Tax Assumptions
+## 📊 2025 Tax Assumptions
 
 - **Standard Deduction (65+):**
-    - Married: $32,300 ($29,200 + $3,100)
-    - Single: $16,550 ($14,600 + $1,950)
-- **Medicare Part B (Base):** $174.70/month per person.
+    - Married: $33,200 ($30,000 + $3,200)
+    - Single: $17,000 ($15,000 + $2,000)
+- **Medicare Part B (Base):** $185.00/month per person.
 - **Social Security:** Taxable portion calculated using Provisional Income thresholds ($25k/$34k for Single, $32k/$44k for Married).
