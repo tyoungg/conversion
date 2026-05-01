@@ -71,15 +71,16 @@ The simulator uses 2024 federal tax brackets, applying income progressively from
 The simulator implements a **Stable Net Spending Goal** logic. It calculates a target annual net income based on your initial total portfolio balance and chosen withdrawal rate. It then attempts to meet this goal using the following priority:
 
 1.  **Mandatory RMDs**: Required Minimum Distributions are taken first (if age ≥ 73).
-2.  **Bracket-Optimized Traditional Withdrawals**: The simulator uses a **binary search algorithm** to calculate the maximum additional Traditional IRA withdrawal possible without pushing taxable income (including SS and Pension) past the target tax bracket (22% for Scenario A, 24% for Scenario B).
-3.  **Roth Buffer/Conversion**:
-    *   If the net income from the optimized Traditional withdrawals + SS + Pension **exceeds** the spending goal, the surplus is **converted to Roth**.
-    *   If there is a **shortfall**, the simulator withdraws from the Roth IRA to bridge the gap.
-4.  **Safety Valve**: If the Roth account is exhausted and the goal is still not met, the simulator will withdraw beyond the tax bracket limits from the Traditional IRA as a last resort.
+2.  **Fixed Roth Withdrawals**: If specified, the simulator takes a fixed annual amount from the Roth IRA first.
+3.  **Bracket-Optimized Traditional Withdrawals**: The simulator uses a **binary search algorithm** to calculate the maximum additional Traditional IRA withdrawal possible without pushing taxable income (including SS and Pension) past the target tax bracket (22% for Scenario A, 24% for Scenario B).
+4.  **Roth Buffer/Conversion**:
+    *   If the net income from the fixed Roth withdrawal + optimized Traditional withdrawals + SS + Pension **exceeds** the spending goal, the surplus is **converted to Roth**.
+    *   If there is a **shortfall**, the simulator withdraws *additional* funds from the Roth IRA to bridge the gap.
+5.  **Safety Valve**: If the Roth account is exhausted and the goal is still not met, the simulator will withdraw beyond the tax bracket limits from the Traditional IRA as a last resort.
 
 ### Tax & Benefit Calculations
 
-*   **Social Security**: Taxes are calculated based on "Provisional Income" (Half of SS + other income). It accurately models the 0%, 50%, and 85% taxation tiers.
+*   **Social Security**: Taxes are calculated using the precise **IRS multi-tier formula** based on "Provisional Income" (Half of SS + other income). It accurately models the "Widow's Penalty" by transitioning thresholds and bracket sizes when filing status changes to Single.
 *   **Medicare IRMAA**: Annual premiums are adjusted based on your Modified Adjusted Gross Income (MAGI), following the 5-tier premium structure.
 *   **Filing Status**: Automatically transitions from "Married Filing Jointly" to "Single" based on the `Spouse Death Age` parameter, adjusting tax brackets and standard deductions accordingly.
 

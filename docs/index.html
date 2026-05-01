@@ -360,13 +360,13 @@
 
                     <div class="form-group">
                         <label for="initialRoth">Initial Roth Balance ($)</label>
-                        <input type="number" id="initialRoth" value="200000" min="0" step="10000" required>
+                        <input type="text" id="initialRoth" value="200,000" class="comma-input" required>
                         <small>Starting balance in Roth IRA/401(k)</small>
                     </div>
 
                     <div class="form-group">
                         <label for="initialTrad">Initial Traditional Balance ($)</label>
-                        <input type="number" id="initialTrad" value="1500000" min="0" step="10000" required>
+                        <input type="text" id="initialTrad" value="1,500,000" class="comma-input" required>
                         <small>Starting balance in Traditional IRA/401(k)</small>
                     </div>
 
@@ -380,26 +380,32 @@
 
                     <div class="form-group">
                         <label for="marriedSS">Married Social Security ($)</label>
-                        <input type="number" id="marriedSS" value="40000" min="0" step="1000" required>
+                        <input type="text" id="marriedSS" value="40,000" class="comma-input" required>
                         <small>Combined annual SS while married</small>
                     </div>
 
                     <div class="form-group">
                         <label for="singleSS">Single Social Security ($)</label>
-                        <input type="number" id="singleSS" value="25000" min="0" step="1000" required>
+                        <input type="text" id="singleSS" value="25,000" class="comma-input" required>
                         <small>Annual SS after spouse passes</small>
                     </div>
 
                     <div class="form-group">
                         <label for="pension">Annual Pension Income ($)</label>
-                        <input type="number" id="pension" value="0" min="0" step="1000" required>
+                        <input type="text" id="pension" value="0" class="comma-input" required>
                         <small>Fixed annual pension payment (if applicable)</small>
                     </div>
 
                     <div class="form-group">
                         <label for="withdrawalRate">Annual Withdrawal Rate (%)</label>
                         <input type="number" id="withdrawalRate" value="12" min="0" max="50" step="0.5" required>
-                        <small>Percentage of traditional balance to withdraw annually</small>
+                        <small>Percentage of total portfolio to withdraw annually for spending goal</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fixedRothWD">Fixed Annual Roth Withdrawal ($)</label>
+                        <input type="text" id="fixedRothWD" value="0" class="comma-input" required>
+                        <small>Fixed amount to take from Roth annually (regardless of goal)</small>
                     </div>
 
                     <div class="section-divider"></div>
@@ -598,6 +604,11 @@
             runSimulation();
         });
 
+        function parseInput(id) {
+            const val = document.getElementById(id).value.replace(/,/g, '');
+            return parseFloat(val) || 0;
+        }
+
         async function runSimulation() {
             try {
                 await initPyodide();
@@ -606,13 +617,14 @@
                     start_age: parseInt(document.getElementById('startAge').value) || 0,
                     end_age: parseInt(document.getElementById('endAge').value) || 0,
                     spouse_death_age: parseInt(document.getElementById('spouseDeathAge').value) || 0,
-                    initial_roth_balance: parseFloat(document.getElementById('initialRoth').value) || 0,
-                    initial_trad_balance: parseFloat(document.getElementById('initialTrad').value) || 0,
+                    initial_roth_balance: parseInput('initialRoth'),
+                    initial_trad_balance: parseInput('initialTrad'),
                     growth_rate: (parseFloat(document.getElementById('growthRate').value) || 0) / 100,
-                    married_ss_income: parseFloat(document.getElementById('marriedSS').value) || 0,
-                    single_ss_income: parseFloat(document.getElementById('singleSS').value) || 0,
-                    pension_income: parseFloat(document.getElementById('pension').value) || 0,
-                    withdrawal_rate: (parseFloat(document.getElementById('withdrawalRate').value) || 0) / 100
+                    married_ss_income: parseInput('marriedSS'),
+                    single_ss_income: parseInput('singleSS'),
+                    pension_income: parseInput('pension'),
+                    withdrawal_rate: (parseFloat(document.getElementById('withdrawalRate').value) || 0) / 100,
+                    fixed_roth_withdrawal: parseInput('fixedRothWD')
                 };
 
                 // Fetch the Python code
@@ -851,6 +863,20 @@ output
                 }
             });
         }
+
+        // Comma formatting for inputs
+        document.querySelectorAll('.comma-input').forEach(input => {
+            input.addEventListener('input', function(e) {
+                // Remove all non-digits
+                let val = this.value.replace(/[^\d]/g, '');
+                if (val === '') {
+                    this.value = '';
+                    return;
+                }
+                // Format with commas
+                this.value = parseInt(val).toLocaleString('en-US');
+            });
+        });
 
         // Initialize Pyodide on page load
         window.addEventListener('load', initPyodide);
