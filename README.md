@@ -10,13 +10,13 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
     - **Scenario B:** Optimized to fill the **24%** federal tax bracket.
     - *Logic:* The engine maximizes Traditional IRA withdrawals up to the target bracket. Any net income generated beyond the spending goal is automatically converted to the Roth IRA.
 - **Precise 2025 Tax Engine:**
-    - Uses full 7-tier federal tax brackets.
+    - Uses full 7-tier federal tax brackets (Updated for 2025).
     - Includes the **IRS tiered Social Security taxation formula** (0%, 50%, and 85% tiers).
-    - Automatically applies **Additional Standard Deductions** for taxpayers age 65 and older ($2,000 for Single, $3,200 for Married).
+    - Automatically applies **Additional Standard Deductions** for taxpayers age 65 and older ($2,000 for Single, $1,600 per person for Married).
     - Models the **"Widow's Penalty"**: Transitioning from Married to Single filing status (brackets, deductions, and SS benefits) when a spouse passes.
 - **Medicare IRMAA Modeling:**
-    - Calculates 2025 Medicare Part B premiums.
-    - Factors in IRMAA surcharges based on MAGI.
+    - Calculates **2025** Medicare Part B premiums ($185.00 base).
+    - Factors in IRMAA surcharges based on MAGI (using 2025 tiers).
     - Correctly doubles premiums for married couples.
 - **Account Buffering:**
     - Fulfills RMDs first.
