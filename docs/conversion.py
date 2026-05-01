@@ -57,25 +57,28 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
 # -----------------------------
 def calculate_medicare_premium(magi, filing_status, age):
     """
-    Calculates annual Medicare Part B premiums including IRMAA based on 2024 rates.
+    Calculates annual Medicare Part B premiums including IRMAA based on 2025 rates.
     Doubles the premium for married couples (assuming both are 65+).
     """
     if age < 65:
         return 0
 
-    # 2024 IRMAA Thresholds
+    # 2025 IRMAA Thresholds
     if filing_status == "married":
-        brackets = [206000, 258000, 322000, 386000, 750000]
+        brackets = [212000, 266000, 334000, 400000, 750000]
     else:
-        brackets = [103000, 129000, 161000, 193000, 500000]
+        brackets = [106000, 133000, 167000, 200000, 500000]
 
-    # 2024 Monthly Premiums (Part B)
-    # $174.70 standard, then IRMAA tiers
-    premiums = [174.70, 244.60, 349.40, 454.20, 559.00, 594.00]
+    # 2025 Monthly Premiums (Part B)
+    # $185.00 standard, then IRMAA tiers
+    premiums = [185.00, 259.00, 370.00, 480.90, 591.90, 628.90]
 
     selected_premium = premiums[-1]
     for i, limit in enumerate(brackets):
-        if magi <= limit:
+        # For the final bracket ($500k/$750k), the top tier starts at "greater than or equal to".
+        # All lower tiers use "up to" (inclusive).
+        is_last_bracket = (i == len(brackets) - 1)
+        if (magi < limit if is_last_bracket else magi <= limit):
             selected_premium = premiums[i]
             break
 
@@ -84,6 +87,10 @@ def calculate_medicare_premium(magi, filing_status, age):
 
 
 def calculate_rmd(balance, age):
+    """
+    Calculates Required Minimum Distribution.
+    Note: Roth IRAs are not subject to RMDs for the original owner.
+    """
     if age < 73 or balance <= 0:
         return 0
 
@@ -117,25 +124,25 @@ def simulate_retirement(
     include_medicare=True,
     fixed_roth_withdrawal=0
 ):
-    # 2024 Tax Brackets (Full 7-tier)
+    # 2025 Tax Brackets (Full 7-tier)
     married_brackets = [
-        (0, 23200, 0.10),
-        (23200, 94300, 0.12),
-        (94300, 201050, 0.22),
-        (201050, 383900, 0.24),
-        (383900, 487450, 0.32),
-        (487450, 731200, 0.35),
-        (731200, float('inf'), 0.37)
+        (0, 23850, 0.10),
+        (23850, 95950, 0.12),
+        (95950, 206700, 0.22),
+        (206700, 394600, 0.24),
+        (394600, 501050, 0.32),
+        (501050, 751600, 0.35),
+        (751600, float('inf'), 0.37)
     ]
 
     single_brackets = [
-        (0, 11600, 0.10),
-        (11600, 47150, 0.12),
-        (47150, 100525, 0.22),
-        (100525, 191950, 0.24),
-        (191950, 243725, 0.32),
-        (243725, 609350, 0.35),
-        (609350, float('inf'), 0.37)
+        (0, 11925, 0.10),
+        (11925, 48475, 0.12),
+        (48475, 103350, 0.22),
+        (103350, 197300, 0.24),
+        (197300, 250525, 0.32),
+        (250525, 626350, 0.35),
+        (626350, float('inf'), 0.37)
     ]
 
     results = []
@@ -155,13 +162,13 @@ def simulate_retirement(
 
         brackets = married_brackets if married else single_brackets
 
-        # 2024 Standard Deduction + Age 65+ Additional Deduction
+        # 2025 Standard Deduction + Age 65+ Additional Deduction
         if married:
-            # Married: $29,200 + $1,550 * 2 (assuming both 65+)
-            deduction = 29200 + (3100 if age >= 65 else 0)
+            # Married: $30,000 + $1,600 * 2 (assuming both 65+)
+            deduction = 30000 + (3200 if age >= 65 else 0)
         else:
-            # Single: $14,600 + $1,950 (if 65+)
-            deduction = 14600 + (1950 if age >= 65 else 0)
+            # Single: $15,000 + $2,000 (if 65+)
+            deduction = 15000 + (2000 if age >= 65 else 0)
 
         # Strategy A (22%) or B (24%)
         bracket_limit = brackets[2][1] if strategy == "A" else brackets[3][1]
