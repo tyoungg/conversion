@@ -1,111 +1,54 @@
-# Retirement Tax Conversion Strategy Simulator
+# 💰 Retirement Tax Conversion Strategy Simulator
 
-A Python and Web-based tool to simulate and compare different retirement withdrawal strategies, focusing on tax-efficient conversions between Traditional IRA and Roth accounts.
+A high-fidelity retirement withdrawal and tax optimization engine. This tool helps retirees compare different withdrawal strategies to minimize lifetime taxes, maximize ending balances, and understand the impact of the "Widow's Penalty."
 
-## Overview
+## 🚀 Key Features
 
-This project helps retirees optimize their withdrawal strategy by comparing two approaches:
-- **Strategy A**: Conservative approach that stops withdrawals at the 22% tax bracket threshold
-- **Strategy B**: Aggressive approach that goes into the 24% tax bracket
+- **Stable Net Spending Goal:** The simulation derives an annual spending target based on your initial portfolio and a configurable withdrawal rate. It maintains this net income level throughout retirement.
+- **Roth Conversion Ladder:**
+    - **Scenario A:** Optimized to fill the **22%** federal tax bracket.
+    - **Scenario B:** Optimized to fill the **24%** federal tax bracket.
+    - *Logic:* The engine maximizes Traditional IRA withdrawals up to the target bracket. Any net income generated beyond the spending goal is automatically converted to the Roth IRA.
+- **Precise 2024 Tax Engine:**
+    - Uses full 7-tier federal tax brackets.
+    - Includes the **IRS tiered Social Security taxation formula** (0%, 50%, and 85% tiers).
+    - Automatically applies **Additional Standard Deductions** for taxpayers age 65 and older ($1,950 for Single, $3,100 for Married).
+    - Models the **"Widow's Penalty"**: Transitioning from Married to Single filing status (brackets, deductions, and SS benefits) when a spouse passes.
+- **Medicare IRMAA Modeling:**
+    - Calculates 2024 Medicare Part B premiums.
+    - Factors in IRMAA surcharges based on MAGI.
+    - Correctly doubles premiums for married couples.
+- **Account Buffering:**
+    - Fulfills RMDs first.
+    - Uses Roth assets as a buffer if Traditional withdrawals (within optimized brackets) don't meet the spending goal.
+    - Automated "Emergency" Traditional withdrawals if Roth assets are exhausted.
 
-The simulator models year-by-year retirement scenarios with realistic tax calculations including Social Security income taxation and Medicare Part B premiums (IRMAA).
+## 🛠 Usage
 
-## Features
+1.  **Enter Your Data:** Provide starting ages, portfolio balances, and income sources (Social Security, Pensions).
+2.  **Set Goals:** Define your withdrawal rate and optional fixed Roth withdrawals.
+3.  **Calculate:** The engine runs two parallel simulations (Scenario A and Scenario B).
+4.  **Analyze:**
+    - **Summary:** Compare total lifetime taxes, Medicare costs, and ending balances.
+    - **Charts:** Visualize account balance depletion and annual Roth conversion amounts.
+    - **Details:** Inspect year-by-year breakdowns of every tax and withdrawal event.
 
-- 🔄 **Roth Conversion Ladder**: Automatically converts surplus Traditional IRA funds to Roth within the target tax bracket.
-- 📊 **Progressive Tax Calculation**: Uses actual federal tax brackets (2024).
-- 🔄 **Social Security Taxation**: Models provisional income-based taxation (0%, 50%, or 85%).
-- 🏥 **Medicare IRMAA**: Calculates Medicare Part B premiums based on income tiers.
-- 👫 **Marital Status Changes**: Handles spouse mortality and filing status transitions.
-- 📈 **Account Growth**: Models portfolio growth during retirement.
-- 📋 **Detailed Results**: Year-by-year breakdown of balances, withdrawals, taxes, and net income.
-- 📈 **Interactive Visualization**: Web-based charts using Chart.js.
+## 🧪 Technical Details
 
-## Installation & Setup
+- **Frontend:** Single Page Application (SPA) using HTML/CSS/JS.
+- **Simulation Engine:** Written in Python and executed in the browser via **Pyodide**.
+- **Visualizations:** Powered by **Chart.js**.
+- **Withdrawal Priority:**
+    1.  Required Minimum Distributions (RMDs).
+    2.  Fixed Roth Withdrawals (if configured).
+    3.  Optimized Traditional Withdrawals (filling brackets).
+    4.  Roth Buffer (to reach spending goal).
+    5.  Excess Traditional (if goal still not met).
 
-### For Web UI (Recommended)
-The tool is designed to run in a web browser using Pyodide (Python in the browser).
+## 📊 2024 Tax Assumptions
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/tyoungg/conversion.git
-   cd conversion
-   ```
-2. Start a local web server:
-   ```bash
-   python3 -m http.server 8080 --directory docs
-   ```
-3. Open your browser to `http://localhost:8080`
-
-### For Command Line
-1. Navigate to the `docs` directory:
-   ```bash
-   cd docs
-   ```
-2. Run the simulation:
-   ```bash
-   python3 conversion.py
-   ```
-
-## Usage
-
-### Web Interface
-Fill in your retirement details in the left panel:
-- **Starting/Ending Age**: Your planned retirement horizon.
-- **Initial Balances**: Current amounts in Traditional and Roth accounts.
-- **Income Sources**: Social Security (Married/Single) and any Pension.
-- **Withdrawal Rate**: Target percentage of your portfolio to withdraw annually.
-
-Click **"Calculate Scenarios"** to see a side-by-side comparison and detailed year-by-year breakdowns.
-
-### CLI (Advanced)
-Edit the default parameters in the `if __name__ == "__main__":` block of `docs/conversion.py` to customize your run.
-
-## Key Concepts
-
-### Progressive Tax Brackets
-The simulator uses 2024 federal tax brackets, applying income progressively from lowest to highest brackets.
-
-### Withdrawal Strategies & Priority
-
-The simulator implements a **Stable Net Spending Goal** logic. It calculates a target annual net income based on your initial total portfolio balance and chosen withdrawal rate. It then attempts to meet this goal using the following priority:
-
-1.  **Mandatory RMDs**: Required Minimum Distributions are taken first (if age ≥ 73).
-2.  **Fixed Roth Withdrawals**: If specified, the simulator takes a fixed annual amount from the Roth IRA first.
-3.  **Bracket-Optimized Traditional Withdrawals**: The simulator uses a **binary search algorithm** to calculate the maximum additional Traditional IRA withdrawal possible without pushing taxable income (including SS and Pension) past the target tax bracket (22% for Scenario A, 24% for Scenario B).
-4.  **Roth Buffer/Conversion**:
-    *   If the net income from the fixed Roth withdrawal + optimized Traditional withdrawals + SS + Pension **exceeds** the spending goal, the surplus is **converted to Roth**.
-    *   If there is a **shortfall**, the simulator withdraws *additional* funds from the Roth IRA to bridge the gap.
-5.  **Safety Valve**: If the Roth account is exhausted and the goal is still not met, the simulator will withdraw beyond the tax bracket limits from the Traditional IRA as a last resort.
-
-### Tax & Benefit Calculations
-
-*   **Social Security**: Taxes are calculated using the precise **IRS multi-tier formula** based on "Provisional Income" (Half of SS + other income). It accurately models the "Widow's Penalty" by transitioning thresholds and bracket sizes when filing status changes to Single.
-*   **Medicare IRMAA**: Annual premiums are adjusted based on your Modified Adjusted Gross Income (MAGI), following the 5-tier premium structure.
-*   **Filing Status**: Automatically transitions from "Married Filing Jointly" to "Single" based on the `Spouse Death Age` parameter, adjusting tax brackets and standard deductions accordingly.
-
-## File Structure
-
-```
-conversion/
-├── docs/
-│   ├── conversion.py       # Main simulation logic (Python)
-│   └── index.html         # Web UI (HTML/JS/Pyodide)
-├── tests/
-│   └── calculator.spec.ts # Playwright E2E tests
-├── README.md              # This file
-├── package.json           # Test dependencies
-└── retirement_ui_v2.png   # UI mockup
-```
-
-## Testing
-
-End-to-end tests are written with Playwright.
-```bash
-npm install
-npx playwright test
-```
-
-## Disclaimer
-
-This tool provides simplified tax calculations for educational/planning purposes only. Actual tax liability depends on individual circumstances, state taxes, and other factors not modeled here. **Consult a qualified tax professional before making withdrawal decisions.**
+- **Standard Deduction (65+):**
+    - Married: $32,300 ($29,200 + $3,100)
+    - Single: $16,550 ($14,600 + $1,950)
+- **Medicare Part B (Base):** $174.70/month per person.
+- **Social Security:** Taxable portion calculated using Provisional Income thresholds ($25k/$34k for Single, $32k/$44k for Married).
