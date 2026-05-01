@@ -94,14 +94,17 @@ def calculate_rmd(balance, age):
     if age < 73 or balance <= 0:
         return 0
 
+    # IRS Uniform Lifetime Table (Simplified/Standard)
     divisors = {
         73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9,
         78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
         83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4,
-        88: 13.7, 89: 12.9, 90: 12.2
+        88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8,
+        93: 10.1, 94: 9.5, 95: 8.9, 96: 8.4, 97: 7.8,
+        98: 7.3, 99: 6.8, 100: 6.4
     }
 
-    divisor = divisors.get(age, 10)
+    divisor = divisors.get(age, divisors[max(divisors.keys())] if age > 100 else 10)
     return balance / divisor
 
 
@@ -151,9 +154,14 @@ def simulate_retirement(
     prev_trad = initial_trad_balance
 
     # Stable Spending Target (Net)
-    # Note: We derive this from the initial balances and withdrawal rate
-    # This remains the annual goal for the entire simulation
     annual_spending_goal = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+
+    # SECURE 2.0 RMD Age Logic
+    # 2025 - start_age = birth_year.
+    # If born 1951-1959, RMD age is 73.
+    # If born 1960 or later, RMD age is 75.
+    birth_year = 2025 - start_age
+    rmd_start_age = 75 if birth_year >= 1960 else 73
 
     for age in range(start_age, end_age + 1):
         # IRS rule: You can file Married Filing Jointly for the year your spouse dies.

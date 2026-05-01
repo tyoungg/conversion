@@ -630,8 +630,8 @@
                     fixed_roth_withdrawal: parseInput('fixedRothWD')
                 };
 
-                // Fetch the Python code
-                const response = await fetch('./conversion.py');
+                // Fetch the Python code with cache buster
+                const response = await fetch('./conversion.py?v=' + new Date().getTime());
                 const pythonCode = await response.text();
 
                 // Hard validation
@@ -729,9 +729,16 @@ output
             // Differences
             const setDiff = (id, diff, inverse = false) => {
                 const el = document.getElementById(id);
+                const absDiff = Math.abs(diff);
                 const isGood = inverse ? diff > 0 : diff < 0;
-                el.textContent = formatCurrency(diff) + (isGood ? (diff === 0 ? '' : ' (Better)') : ' (Worse)');
-                el.style.color = diff === 0 ? '#333' : (isGood ? '#2f855a' : '#c53030');
+
+                if (absDiff < 0.01) {
+                    el.textContent = formatCurrency(0);
+                    el.style.color = '#333';
+                } else {
+                    el.textContent = formatCurrency(diff) + (isGood ? ' (Better)' : ' (Worse)');
+                    el.style.color = isGood ? '#2f855a' : '#c53030';
+                }
             };
 
             setDiff('taxDiff', a.taxes - b.taxes);
