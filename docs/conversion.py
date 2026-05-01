@@ -63,7 +63,7 @@ def calculate_medicare_premium(magi, filing_status, age):
     if age < 65:
         return 0
 
-    # 2025 IRMAA Thresholds
+    # 2025 IRMAA Thresholds (MAGI from 2 years prior, but using 2025 brackets for simulation)
     if filing_status == "married":
         brackets = [212000, 266000, 334000, 400000, 750000]
     else:
@@ -86,12 +86,12 @@ def calculate_medicare_premium(magi, filing_status, age):
     return annual_premium * 2 if filing_status == "married" else annual_premium
 
 
-def calculate_rmd(balance, age, rmd_start_age):
+def calculate_rmd(balance, age):
     """
     Calculates Required Minimum Distribution.
     Note: Roth IRAs are not subject to RMDs for the original owner.
     """
-    if age < rmd_start_age or balance <= 0:
+    if age < 73 or balance <= 0:
         return 0
 
     # IRS Uniform Lifetime Table (Simplified/Standard)
@@ -164,7 +164,7 @@ def simulate_retirement(
     rmd_start_age = 75 if birth_year >= 1960 else 73
 
     for age in range(start_age, end_age + 1):
-        # IRS rule: You are considered married for the whole year in which your spouse died.
+        # IRS rule: You can file Married Filing Jointly for the year your spouse dies.
         married = age <= spouse_death_age
         status = "married" if married else "single"
         ss = married_ss_income if married else single_ss_income
@@ -173,11 +173,11 @@ def simulate_retirement(
 
         # 2025 Standard Deduction + Age 65+ Additional Deduction
         if married:
-            # Married: $30,000 + $1,600 * 2 (assuming both 65+)
-            deduction = 30000 + (3200 if age >= 65 else 0)
+            # Married: $31,500 + $1,600 * 2 (assuming both 65+)
+            deduction = 31500 + (3200 if age >= 65 else 0)
         else:
-            # Single: $15,000 + $2,000 (if 65+)
-            deduction = 15000 + (2000 if age >= 65 else 0)
+            # Single: $15,750 + $2,000 (if 65+)
+            deduction = 15750 + (2000 if age >= 65 else 0)
 
         # Strategy A (22%) or B (24%)
         bracket_limit = brackets[2][1] if strategy == "A" else brackets[3][1]
@@ -187,7 +187,9 @@ def simulate_retirement(
         trad *= (1 + growth_rate)
 
         # 1. RMD (Mandatory)
-        rmd = calculate_rmd(prev_trad, age, rmd_start_age) if include_rmd else 0
+        # NOTE: Roth IRAs never have Required Minimum Distributions (RMDs) for the original owner.
+        # RMDs only apply to Traditional IRA/401(k) balances.
+        rmd = calculate_rmd(prev_trad, age) if include_rmd else 0
         rmd_taken = min(rmd, trad)
         trad -= rmd_taken
 

@@ -610,6 +610,9 @@
         }
 
         async function runSimulation() {
+            const resultsContent = document.getElementById('resultsContent');
+            const noResults = document.getElementById('noResults');
+
             try {
                 await initPyodide();
 
@@ -683,14 +686,23 @@ output
 `;
 
                 // Run Python code
-                const result = await pyodide.runPythonAsync(simCode);
+                let result;
+                try {
+                    result = await pyodide.runPythonAsync(simCode);
+                } catch (pyError) {
+                    console.error("Python Execution Error:", pyError);
+                    throw new Error("Simulation Engine Error: " + pyError.message);
+                }
+
                 const output = result.toJs({dict_converter: Object.fromEntries});
 
                 // Display results
                 displayResults(output);
 
             } catch (error) {
-                showError('Error: ' + error.message);
+                showError(error.message);
+                resultsContent.classList.add('results-hidden');
+                noResults.style.display = 'block';
                 console.error(error);
             }
         }
