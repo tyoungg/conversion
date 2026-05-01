@@ -75,7 +75,10 @@ def calculate_medicare_premium(magi, filing_status, age):
 
     selected_premium = premiums[-1]
     for i, limit in enumerate(brackets):
-        if magi <= limit:
+        # For the final bracket ($500k/$750k), the top tier starts at "greater than or equal to".
+        # All lower tiers use "up to" (inclusive).
+        is_last_bracket = (i == len(brackets) - 1)
+        if (magi < limit if is_last_bracket else magi <= limit):
             selected_premium = premiums[i]
             break
 
@@ -84,6 +87,10 @@ def calculate_medicare_premium(magi, filing_status, age):
 
 
 def calculate_rmd(balance, age):
+    """
+    Calculates Required Minimum Distribution.
+    Note: Roth IRAs are not subject to RMDs for the original owner.
+    """
     if age < 73 or balance <= 0:
         return 0
 
