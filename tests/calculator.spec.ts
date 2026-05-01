@@ -11,13 +11,14 @@ test('Retirement calculator simulation runs and displays comparison results', as
   await page.fill('#startAge', '65');
   await page.fill('#endAge', '95');
   await page.fill('#spouseDeathAge', '85');
-  await page.fill('#initialRoth', '200000');
-  await page.fill('#initialTrad', '1500000');
+  await page.fill('#initialRoth', '200,000');
+  await page.fill('#initialTrad', '1,500,000');
   await page.fill('#growthRate', '5');
-  await page.fill('#marriedSS', '40000');
-  await page.fill('#singleSS', '25000');
+  await page.fill('#marriedSS', '40,000');
+  await page.fill('#singleSS', '25,000');
   await page.fill('#pension', '0');
   await page.fill('#withdrawalRate', '12');
+  await page.fill('#fixedRothWD', '10,000');
 
   // Run simulation
   await page.click('button:has-text("Calculate Scenarios")');

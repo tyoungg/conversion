@@ -13,19 +13,35 @@ def calculate_tax(taxable_income, brackets):
 
 
 def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status):
+    """
+    Calculates the taxable portion of Social Security benefits based on IRS
+    provisional income thresholds.
+    """
     provisional = withdrawal_trad + other_income + 0.5 * ss_income
 
     if filing_status == "married":
         t1, t2 = 32000, 44000
+        max_50_pct_tier = 6000  # (44000 - 32000) * 0.5
     else:
         t1, t2 = 25000, 34000
+        max_50_pct_tier = 4500  # (34000 - 25000) * 0.5
 
-    if provisional < t1:
+    if provisional <= t1:
         return 0
-    elif provisional < t2:
-        return 0.5 * ss_income
-    else:
-        return 0.85 * ss_income
+
+    # Amount in the 50% tier
+    tier1_amt = min(provisional, t2) - t1
+    taxable_50 = 0.5 * tier1_amt
+
+    # Amount in the 85% tier
+    tier2_amt = max(0, provisional - t2)
+    taxable_85 = 0.85 * tier2_amt
+
+    # The actual taxable amount is the lesser of the calculated tiered amount or 85% of SS.
+    # The tiered amount is (85% of amount over T2) + (lesser of 50% tier amount, 50% of SS, or the max tier 1 allowance)
+    combined_tiered = taxable_85 + min(taxable_50, 0.5 * ss_income, max_50_pct_tier)
+
+    return min(combined_tiered, 0.85 * ss_income)
 
 
 # -----------------------------
@@ -80,20 +96,22 @@ def simulate_retirement(
     withdrawal_rate,
     strategy="B",
     include_rmd=True,
-    include_medicare=True
+    include_medicare=True,
+    fixed_roth_withdrawal=0
 ):
+    # 2024 Tax Brackets
     married_brackets = [
-        (0, 22000, 0.10),
-        (22000, 89450, 0.12),
-        (89450, 190750, 0.22),
-        (190750, 364200, 0.24),
+        (0, 23200, 0.10),
+        (23200, 94300, 0.12),
+        (94300, 201050, 0.22),
+        (201050, 383900, 0.24),
     ]
 
     single_brackets = [
-        (0, 11000, 0.10),
-        (11000, 44725, 0.12),
-        (44725, 95375, 0.22),
-        (95375, 182100, 0.24),
+        (0, 11600, 0.10),
+        (11600, 47150, 0.12),
+        (47150, 100525, 0.22),
+        (100525, 191950, 0.24),
     ]
 
     results = []
@@ -158,21 +176,28 @@ def simulate_retirement(
         net_available = (total_trad + ss + pension_income) - (taxes + medicare)
 
         roth_conversion = 0
-        roth_withdrawal = 0
 
-        if net_available > annual_spending_goal:
+        # User specified fixed Roth withdrawal
+        roth_withdrawal = min(fixed_roth_withdrawal, roth)
+        roth -= roth_withdrawal
+
+        # Current net including fixed Roth withdrawal
+        current_net = net_available + roth_withdrawal
+
+        if current_net > annual_spending_goal:
             # We have excess! This is the "Conversion" part.
             # We move the excess net income into the Roth IRA.
-            roth_conversion = net_available - annual_spending_goal
+            roth_conversion = current_net - annual_spending_goal
             roth += roth_conversion
             net_income = annual_spending_goal
         else:
-            # We have a shortfall. Use Roth to bridge it.
-            shortfall = annual_spending_goal - net_available
-            roth_withdrawal = min(shortfall, roth)
-            roth -= roth_withdrawal
+            # We have a shortfall. Use Roth to bridge it if possible.
+            shortfall = annual_spending_goal - current_net
+            additional_roth_wd = min(shortfall, roth)
+            roth -= additional_roth_wd
+            roth_withdrawal += additional_roth_wd
 
-            net_income = net_available + roth_withdrawal
+            net_income = current_net + additional_roth_wd
 
             # If still short and Roth is empty, we must take more from Trad (ignoring brackets)
             final_shortfall = annual_spending_goal - net_income
