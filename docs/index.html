@@ -360,13 +360,13 @@
 
                     <div class="form-group">
                         <label for="initialRoth">Initial Roth Balance ($)</label>
-                        <input type="text" id="initialRoth" value="200,000" class="comma-input" required>
+                        <input type="text" id="initialRoth" value="1,500,000" class="comma-input" min="0" step="10000" required>
                         <small>Starting balance in Roth IRA/401(k)</small>
                     </div>
 
                     <div class="form-group">
                         <label for="initialTrad">Initial Traditional Balance ($)</label>
-                        <input type="text" id="initialTrad" value="1,500,000" class="comma-input" required>
+                        <input type="text" id="initialTrad" value="2,000,000" class="comma-input" min="0" step="10000" required>
                         <small>Starting balance in Traditional IRA/401(k)</small>
                     </div>
 
@@ -380,25 +380,25 @@
 
                     <div class="form-group">
                         <label for="marriedSS">Married Social Security ($)</label>
-                        <input type="text" id="marriedSS" value="40,000" class="comma-input" required>
+                        <input type="text" id="marriedSS" value="40,000" class="comma-input" min="0" step="1000" required>
                         <small>Combined annual SS while married</small>
                     </div>
 
                     <div class="form-group">
                         <label for="singleSS">Single Social Security ($)</label>
-                        <input type="text" id="singleSS" value="25,000" class="comma-input" required>
+                        <input type="text" id="singleSS" value="25,000" class="comma-input" min="0" step="1000" required>
                         <small>Annual SS after spouse passes</small>
                     </div>
 
                     <div class="form-group">
                         <label for="pension">Annual Pension Income ($)</label>
-                        <input type="text" id="pension" value="0" class="comma-input" required>
+                        <input type="text" id="pension" value="30,000" class="comma-input" min="0" step="1000" required>
                         <small>Fixed annual pension payment (if applicable)</small>
                     </div>
 
                     <div class="form-group">
                         <label for="withdrawalRate">Annual Withdrawal Rate (%)</label>
-                        <input type="number" id="withdrawalRate" value="12" min="0" max="50" step="0.5" required>
+                        <input type="number" id="withdrawalRate" value="5" min="0" max="50" step="0.5" required>
                         <small>Percentage of total portfolio to withdraw annually for spending goal</small>
                     </div>
 

@@ -17,6 +17,9 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
     Calculates the taxable portion of Social Security benefits based on IRS
     provisional income thresholds.
     """
+    if ss_income <= 0:
+        return 0
+
     provisional = withdrawal_trad + other_income + 0.5 * ss_income
 
     if filing_status == "married":
@@ -29,18 +32,23 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
     if provisional <= t1:
         return 0
 
-    # Amount in the 50% tier
+    # Amount in the 50% tier (between T1 and T2)
     tier1_amt = min(provisional, t2) - t1
     taxable_50 = 0.5 * tier1_amt
 
-    # Amount in the 85% tier
+    # Amount in the 85% tier (above T2)
     tier2_amt = max(0, provisional - t2)
     taxable_85 = 0.85 * tier2_amt
 
-    # The actual taxable amount is the lesser of the calculated tiered amount or 85% of SS.
-    # The tiered amount is (85% of amount over T2) + (lesser of 50% tier amount, 50% of SS, or the max tier 1 allowance)
+    # Tiered amount logic:
+    # 1. Start with 85% of excess over T2
+    # 2. Add the smallest of:
+    #    a) The 50% tier amount calculated above
+    #    b) 50% of the SS benefit
+    #    c) The max allowance for tier 1 ($6000 for married, $4500 for single)
     combined_tiered = taxable_85 + min(taxable_50, 0.5 * ss_income, max_50_pct_tier)
 
+    # Total taxable is the smaller of the tiered result or 85% of total SS.
     return min(combined_tiered, 0.85 * ss_income)
 
 
@@ -48,21 +56,31 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
 # MEDICARE + RMD
 # -----------------------------
 def calculate_medicare_premium(magi, filing_status, age):
+    """
+    Calculates annual Medicare Part B premiums including IRMAA based on 2024 rates.
+    Doubles the premium for married couples (assuming both are 65+).
+    """
     if age < 65:
         return 0
 
+    # 2024 IRMAA Thresholds
     if filing_status == "married":
-        brackets = [194000, 246000, 306000, 366000]
+        brackets = [206000, 258000, 322000, 386000, 750000]
     else:
-        brackets = [97000, 123000, 153000, 183000]
+        brackets = [103000, 129000, 161000, 193000, 500000]
 
-    premiums = [164.90, 230.80, 321.80, 412.70, 503.70]
+    # 2024 Monthly Premiums (Part B)
+    # $174.70 standard, then IRMAA tiers
+    premiums = [174.70, 244.60, 349.40, 454.20, 559.00, 594.00]
 
+    selected_premium = premiums[-1]
     for i, limit in enumerate(brackets):
         if magi <= limit:
-            return premiums[i] * 12
+            selected_premium = premiums[i]
+            break
 
-    return premiums[-1] * 12
+    annual_premium = selected_premium * 12
+    return annual_premium * 2 if filing_status == "married" else annual_premium
 
 
 def calculate_rmd(balance, age):
@@ -99,12 +117,15 @@ def simulate_retirement(
     include_medicare=True,
     fixed_roth_withdrawal=0
 ):
-    # 2024 Tax Brackets
+    # 2024 Tax Brackets (Full 7-tier)
     married_brackets = [
         (0, 23200, 0.10),
         (23200, 94300, 0.12),
         (94300, 201050, 0.22),
         (201050, 383900, 0.24),
+        (383900, 487450, 0.32),
+        (487450, 731200, 0.35),
+        (731200, float('inf'), 0.37)
     ]
 
     single_brackets = [
@@ -112,6 +133,9 @@ def simulate_retirement(
         (11600, 47150, 0.12),
         (47150, 100525, 0.22),
         (100525, 191950, 0.24),
+        (191950, 243725, 0.32),
+        (243725, 609350, 0.35),
+        (609350, float('inf'), 0.37)
     ]
 
     results = []
@@ -130,7 +154,14 @@ def simulate_retirement(
         ss = married_ss_income if married else single_ss_income
 
         brackets = married_brackets if married else single_brackets
-        deduction = 29200 if married else 14600
+
+        # 2024 Standard Deduction + Age 65+ Additional Deduction
+        if married:
+            # Married: $29,200 + $1,550 * 2 (assuming both 65+)
+            deduction = 29200 + (3100 if age >= 65 else 0)
+        else:
+            # Single: $14,600 + $1,950 (if 65+)
+            deduction = 14600 + (1950 if age >= 65 else 0)
 
         # Strategy A (22%) or B (24%)
         bracket_limit = brackets[2][1] if strategy == "A" else brackets[3][1]
@@ -248,15 +279,15 @@ if __name__ == "__main__":
     # Default test parameters
     test_params = {
         "start_age": 65,
-        "end_age": 91,
-        "spouse_death_age": 79,
-        "initial_roth_balance": 2000000,
+        "end_age": 95,
+        "spouse_death_age": 85,
+        "initial_roth_balance": 200000,
         "initial_trad_balance": 1500000,
         "growth_rate": 0.05,
         "married_ss_income": 40000,
         "single_ss_income": 25000,
-        "pension_income": 30000,
-        "withdrawal_rate": 0.05
+        "pension_income": 0,
+        "withdrawal_rate": 0.12
     }
 
     print("Running Retirement Simulation...")
