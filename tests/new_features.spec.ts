@@ -29,6 +29,8 @@ test('QCD and Roth Conversion Toggle', async ({ page }) => {
 
   // Check the table for QCD column
   await page.click('button:has-text("Year-by-Year")');
+  // Column 11 is now "Annual QCD" (it was before too, but let's be sure of the index after adding Taxable Income)
+  // Age(1), Status(2), SS(3), Pension(4), Trad WD(5), Roth WD(6), Roth Conv(7), Trad Bal(8), Roth Bal(9), RMD(10), QCD(11), TaxableInc(12), Taxes(13), Medicare(14), Net(15)
   const qcdCell = await page.locator('#tableBody tr:first-child td:nth-child(11)').innerText();
   expect(qcdCell).not.toBe('$0');
 });
@@ -64,7 +66,8 @@ test('RMD Satisfaction via QCD', async ({ page }) => {
   await expect(page.locator('#resultsContent')).toBeVisible({ timeout: 20000 });
   await page.click('button:has-text("Year-by-Year")');
 
-  const netIncome = await page.locator('#tableBody tr:first-child td:nth-child(14)').innerText();
+  // Age(1), Status(2), SS(3), Pension(4), Trad WD(5), Roth WD(6), Roth Conv(7), Trad Bal(8), Roth Bal(9), RMD(10), QCD(11), Penalty(12), TaxableInc(13), Taxes(14), Medicare(15), Net(16)
+  const netIncome = await page.locator('#tableBody tr:first-child td:nth-child(16)').innerText();
   const netIncomeVal = parseFloat(netIncome.replace(/[^0-9.-]+/g,""));
   expect(netIncomeVal).toBeGreaterThan(60000);
 });
