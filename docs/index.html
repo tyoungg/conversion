@@ -441,9 +441,9 @@
                 <div class="user-guide">
                     <h2>📖 Quick Start Guide</h2>
                     <ul>
-                        <li><strong>Withdrawal Rate:</strong> Sets your net spending goal as a percentage of your initial total portfolio.</li>
-                        <li><strong>Enable Roth Conversions:</strong> If checked, the tool fills the 22% (A) or 24% (B) brackets with conversions when income is below the limit.</li>
-                        <li><strong>QCD Percentage:</strong> For ages 70.5+, specifies the % of your Traditional IRA to donate to charity. These count toward RMDs and are tax-free.</li>
+                        <li><strong>Withdrawal Rate:</strong> Sets your <strong>Gross Withdrawal Target</strong> as a percentage of your initial total portfolio. This is the total amount pulled from your accounts before taxes.</li>
+                        <li><strong>Enable Roth Conversions:</strong> If checked, the tool fills the 22% (A) or 24% (B) brackets with conversions when income is below the limit. <em>Note: If this is ON, your taxes may remain high even with QCDs because the "saved" tax room is immediately filled with Roth conversions.</em></li>
+                        <li><strong>QCD Percentage:</strong> For ages 70.5+, specifies the % of your Traditional IRA to donate to charity. <strong>QCDs are taken first from your Withdrawal Target</strong>, reducing the taxable portion of your withdrawal and lowering your taxes.</li>
                         <li><strong>Spouse Death Age:</strong> Simulates the "Widow's Penalty" by switching to Single filing status and adjusted Social Security in that year.</li>
                     </ul>
                 </div>
@@ -657,6 +657,8 @@
                                         <th>Roth Bal</th>
                                         <th>Annual RMD</th>
                                         <th>Annual QCD</th>
+                                        <th>Annual Penalty</th>
+                                        <th>Taxable Income</th>
                                         <th>Annual Taxes</th>
                                         <th>Annual Medicare</th>
                                         <th>Annual Net Income</th>
@@ -907,6 +909,8 @@ output
                     <td>${formatCurrency(row["Roth Balance"])}</td>
                     <td>${formatCurrency(row["RMD Required"])}</td>
                     <td>${formatCurrency(row["QCD Amount"])}</td>
+                    <td>${formatCurrency(row["RMD Penalty"])}</td>
+                    <td>${formatCurrency(row["Taxable Income"])}</td>
                     <td>${formatCurrency(row["Taxes"])}</td>
                     <td>${formatCurrency(row["Medicare Cost"])}</td>
                     <td>${formatCurrency(row["Net Income"])}</td>
