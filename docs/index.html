@@ -56,6 +56,44 @@
         @media (max-width: 1024px) {
             .content {
                 grid-template-columns: 1fr;
+                padding: 20px;
+                gap: 20px;
+            }
+
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+
+            body {
+                padding: 0;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            .tab-button {
+                padding: 10px;
+                font-size: 0.9em;
+                flex: 1 1 auto;
+                text-align: center;
+            }
+
+            .result-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .result-value {
+                text-align: left;
+                margin-top: 5px;
             }
         }
 
@@ -286,6 +324,30 @@
             margin: 20px 0;
         }
 
+        .user-guide {
+            background: #eef2ff;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .user-guide h2 {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: #4338ca;
+        }
+
+        .user-guide ul {
+            margin-left: 20px;
+        }
+
+        .user-guide li {
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            color: #374151;
+        }
+
         .tabs {
             display: flex;
             gap: 10px;
@@ -336,6 +398,15 @@
         <div class="content">
             <!-- LEFT PANEL: INPUT FORM -->
             <div class="form-section">
+                <div class="user-guide">
+                    <h2>📖 Quick Start Guide</h2>
+                    <ul>
+                        <li><strong>Withdrawal Rate:</strong> Sets your net spending goal as a percentage of your initial total portfolio.</li>
+                        <li><strong>Enable Roth Conversions:</strong> If checked, the tool fills the 22% (A) or 24% (B) brackets with conversions when income is below the limit.</li>
+                        <li><strong>QCD Percentage:</strong> For ages 70.5+, specifies the % of your Traditional IRA to donate to charity. These count toward RMDs and are tax-free.</li>
+                        <li><strong>Spouse Death Age:</strong> Simulates the "Widow's Penalty" by switching to Single filing status and adjusted Social Security in that year.</li>
+                    </ul>
+                </div>
                 <h2>Plan Your Retirement</h2>
                 <form id="retirementForm">
                     <div class="form-group">
@@ -411,7 +482,7 @@
                     <div class="form-group">
                         <label for="qcdPercentage">QCD Percentage (%)</label>
                         <input type="number" id="qcdPercentage" value="0" min="0" max="100" step="0.1" required>
-                        <small>Percentage of traditional IRA to donate as QCD (70.5+)</small>
+                        <small>Percentage of traditional IRA to donate as QCD (70.5+). QCDs satisfy RMD requirements dollar-for-dollar.</small>
                     </div>
 
                     <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
@@ -538,7 +609,7 @@
                                         <th>Status</th>
                                         <th>SS</th>
                                         <th>Pension</th>
-                                        <th>Trad W/D</th>
+                                        <th>Taxable Trad W/D</th>
                                         <th>Roth W/D</th>
                                         <th>Roth Conv</th>
                                         <th>Trad Bal</th>
