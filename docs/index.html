@@ -408,6 +408,17 @@
                         <small>Fixed amount to take from Roth annually (regardless of goal)</small>
                     </div>
 
+                    <div class="form-group">
+                        <label for="qcdPercentage">QCD Percentage (%)</label>
+                        <input type="number" id="qcdPercentage" value="0" min="0" max="100" step="0.1" required>
+                        <small>Percentage of traditional IRA to donate as QCD (70.5+)</small>
+                    </div>
+
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="enableConversion" checked style="width: auto;">
+                        <label for="enableConversion" style="margin-bottom: 0;">Enable Roth Conversions</label>
+                    </div>
+
                     <div class="section-divider"></div>
 
                     <button type="submit">Calculate Scenarios</button>
@@ -443,6 +454,10 @@
                                 <span class="result-value" id="conversionsA">-</span>
                             </div>
                             <div class="result-row">
+                                <span class="result-label">Total QCDs:</span>
+                                <span class="result-value" id="qcdSumA">-</span>
+                            </div>
+                            <div class="result-row">
                                 <span class="result-label">Total Expenses:</span>
                                 <span class="result-value" id="expensesA">-</span>
                             </div>
@@ -468,6 +483,10 @@
                                 <span class="result-value" id="conversionsB">-</span>
                             </div>
                             <div class="result-row">
+                                <span class="result-label">Total QCDs:</span>
+                                <span class="result-value" id="qcdSumB">-</span>
+                            </div>
+                            <div class="result-row">
                                 <span class="result-label">Total Expenses:</span>
                                 <span class="result-value" id="expensesB">-</span>
                             </div>
@@ -491,6 +510,10 @@
                             <div class="result-row">
                                 <span class="result-label">Total Expense Difference:</span>
                                 <span class="result-value" id="expenseDiff">-</span>
+                            </div>
+                            <div class="result-row">
+                                <span class="result-label">QCD Difference:</span>
+                                <span class="result-value" id="qcdDiff">-</span>
                             </div>
                             <div class="result-row">
                                 <span class="result-label">Balance Difference:</span>
@@ -521,6 +544,7 @@
                                         <th>Trad Bal</th>
                                         <th>Roth Bal</th>
                                         <th>RMD</th>
+                                        <th>QCD</th>
                                         <th>Taxes</th>
                                         <th>Medicare</th>
                                         <th>Net Income</th>
@@ -627,7 +651,9 @@
                     single_ss_income: parseInput('singleSS'),
                     pension_income: parseInput('pension'),
                     withdrawal_rate: (parseFloat(document.getElementById('withdrawalRate').value) || 0) / 100,
-                    fixed_roth_withdrawal: parseInput('fixedRothWD')
+                    fixed_roth_withdrawal: parseInput('fixedRothWD'),
+                    qcd_percentage: (parseFloat(document.getElementById('qcdPercentage').value) || 0) / 100,
+                    enable_roth_conversion: document.getElementById('enableConversion').checked
                 };
 
                 // Fetch the Python code with cache buster
@@ -656,12 +682,13 @@ def summarize(results):
     total_taxes = sum(r["Taxes"] for r in results)
     total_medicare = sum(r["Medicare Cost"] for r in results)
     total_conversions = sum(r["Roth Conversion"] for r in results)
+    total_qcds = sum(r["QCD Amount"] for r in results)
     total_expenses = total_taxes + total_medicare
     ending_balance = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
-    return total_taxes, total_medicare, total_conversions, total_expenses, ending_balance
+    return total_taxes, total_medicare, total_conversions, total_expenses, ending_balance, total_qcds
 
-tax_a, medicare_a, conv_a, expenses_a, bal_a = summarize(results_a)
-tax_b, medicare_b, conv_b, expenses_b, bal_b = summarize(results_b)
+tax_a, medicare_a, conv_a, expenses_a, bal_a, qcd_a = summarize(results_a)
+tax_b, medicare_b, conv_b, expenses_b, bal_b, qcd_b = summarize(results_b)
 
 output = {
     "scenarioA": {
@@ -669,14 +696,16 @@ output = {
         "medicare": medicare_a,
         "conversions": conv_a,
         "expenses": expenses_a,
-        "balance": bal_a
+        "balance": bal_a,
+        "qcds": qcd_a
     },
     "scenarioB": {
         "taxes": tax_b,
         "medicare": medicare_b,
         "conversions": conv_b,
         "expenses": expenses_b,
-        "balance": bal_b
+        "balance": bal_b,
+        "qcds": qcd_b
     },
     "resultsA": results_a,
     "resultsB": results_b
@@ -717,12 +746,14 @@ output
             document.getElementById('taxA').textContent = formatCurrency(a.taxes);
             document.getElementById('medicareA').textContent = formatCurrency(a.medicare);
             document.getElementById('conversionsA').textContent = formatCurrency(a.conversions);
+            document.getElementById('qcdSumA').textContent = formatCurrency(a.qcds);
             document.getElementById('expensesA').textContent = formatCurrency(a.expenses);
             document.getElementById('balanceA').textContent = formatCurrency(a.balance);
 
             document.getElementById('taxB').textContent = formatCurrency(b.taxes);
             document.getElementById('medicareB').textContent = formatCurrency(b.medicare);
             document.getElementById('conversionsB').textContent = formatCurrency(b.conversions);
+            document.getElementById('qcdSumB').textContent = formatCurrency(b.qcds);
             document.getElementById('expensesB').textContent = formatCurrency(b.expenses);
             document.getElementById('balanceB').textContent = formatCurrency(b.balance);
 
@@ -744,6 +775,7 @@ output
             setDiff('taxDiff', a.taxes - b.taxes);
             setDiff('medicareDiff', a.medicare - b.medicare);
             setDiff('expenseDiff', a.expenses - b.expenses);
+            setDiff('qcdDiff', a.qcds - b.qcds, true);
             setDiff('balanceDiff', a.balance - b.balance, true);
 
             // Update table with Scenario A data
@@ -762,6 +794,7 @@ output
                     <td>${formatCurrency(row["Traditional Balance"])}</td>
                     <td>${formatCurrency(row["Roth Balance"])}</td>
                     <td>${formatCurrency(row["RMD Required"])}</td>
+                    <td>${formatCurrency(row["QCD Amount"])}</td>
                     <td>${formatCurrency(row["Taxes"])}</td>
                     <td>${formatCurrency(row["Medicare Cost"])}</td>
                     <td>${formatCurrency(row["Net Income"])}</td>
