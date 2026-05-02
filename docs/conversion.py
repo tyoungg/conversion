@@ -86,12 +86,12 @@ def calculate_medicare_premium(magi, filing_status, age):
     return annual_premium * 2 if filing_status == "married" else annual_premium
 
 
-def calculate_rmd(balance, age):
+def calculate_rmd(balance, age, rmd_start_age=73):
     """
     Calculates Required Minimum Distribution.
     Note: Roth IRAs are not subject to RMDs for the original owner.
     """
-    if age < 73 or balance <= 0:
+    if age < rmd_start_age or balance <= 0:
         return 0
 
     # IRS Uniform Lifetime Table (Simplified/Standard)
@@ -125,7 +125,9 @@ def simulate_retirement(
     strategy="B",
     include_rmd=True,
     include_medicare=True,
-    fixed_roth_withdrawal=0
+    fixed_roth_withdrawal=0,
+    enable_roth_conversion=True,
+    qcd_percentage=0
 ):
     # 2025 Tax Brackets (Full 7-tier)
     married_brackets = [
@@ -153,8 +155,8 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
-    # Stable Spending Target (Net)
-    annual_spending_goal = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
+    gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
 
     # SECURE 2.0 RMD Age Logic
     # 2025 - start_age = birth_year.
@@ -186,15 +188,29 @@ def simulate_retirement(
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
 
-        # 1. RMD (Mandatory)
-        # NOTE: Roth IRAs never have Required Minimum Distributions (RMDs) for the original owner.
-        # RMDs only apply to Traditional IRA/401(k) balances.
-        rmd = calculate_rmd(prev_trad, age) if include_rmd else 0
-        rmd_taken = min(rmd, trad)
+        # 1. QCD
+        qcd_amount = 0
+        if age >= 70:
+            # 2025 limit: $108,000 per individual
+            qcd_limit = 216000 if status == "married" else 108000
+            # User intent: QCD is part of the Gross Withdrawal Target.
+            # However, if QCD percentage is based on Traditional Balance, we respect that.
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage, gross_withdrawal_target)
+            trad -= qcd_amount
+
+        # 2. RMD (Mandatory)
+        rmd = calculate_rmd(prev_trad, age, rmd_start_age) if include_rmd else 0
+        # QCD satisfies RMD dollar-for-dollar
+        rmd_taxable_requirement = max(0, rmd - qcd_amount)
+        rmd_taken = min(rmd_taxable_requirement, trad)
         trad -= rmd_taken
 
-        # 2. Optimized Traditional Withdrawal (Targeting Bracket Limit)
-        # We want to see how much we can withdraw from Trad without exceeding bracket_limit
+        # 3. Optimized Traditional Withdrawal
+        # Remaining gross target after QCD and RMD
+        remaining_gross_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
+
+        # If enable_roth_conversion is True, we fill the bracket.
+        # If enable_roth_conversion is False, we only withdraw up to the remaining gross target (capped by bracket).
         low, high = 0, trad
         best_extra = 0
         for _ in range(20):
@@ -202,17 +218,26 @@ def simulate_retirement(
             test_trad = rmd_taken + mid
             t_ss = calculate_taxable_ss(test_trad, pension_income, ss, status)
             t_income = max(0, test_trad + pension_income + t_ss - deduction)
-            if t_income <= bracket_limit:
-                best_extra = mid
-                low = mid
+
+            if enable_roth_conversion:
+                if t_income <= bracket_limit:
+                    best_extra = mid
+                    low = mid
+                else:
+                    high = mid
             else:
-                high = mid
+                # Target remaining_gross_target
+                if mid <= remaining_gross_target and t_income <= bracket_limit:
+                    best_extra = mid
+                    low = mid
+                else:
+                    high = mid
 
         extra_trad = best_extra
         trad -= extra_trad
         total_trad = rmd_taken + extra_trad
 
-        # 3. Calculate Taxes and Medicare on this Optimized Trad Amount
+        # 4. Calculate Taxes and Medicare on this Optimized Trad Amount
         taxable_ss = calculate_taxable_ss(total_trad, pension_income, ss, status)
         taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
@@ -220,54 +245,45 @@ def simulate_retirement(
         magi = total_trad + pension_income + taxable_ss
         medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
 
-        # 4. Determine Net Available vs Spending Goal
-        # Net from Trad + SS + Pension
-        net_available = (total_trad + ss + pension_income) - (taxes + medicare)
+        # 5. Roth Withdrawal to meet remaining gross target
+        # Gross so far: qcd_amount + total_trad
+        gross_so_far = qcd_amount + total_trad
+        remaining_target_for_roth = max(0, gross_withdrawal_target - gross_so_far)
 
-        roth_conversion = 0
-
-        # User specified fixed Roth withdrawal
-        roth_withdrawal = min(fixed_roth_withdrawal, roth)
+        # Fixed roth withdrawal + bridge to target
+        roth_withdrawal = min(roth, fixed_roth_withdrawal + remaining_target_for_roth)
         roth -= roth_withdrawal
 
-        # Current net including fixed Roth withdrawal
-        current_net = net_available + roth_withdrawal
+        # 6. Determine Net Income and Conversion
+        # Net from Trad + SS + Pension + Roth (Roth is already net)
+        net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare)
 
-        if current_net > annual_spending_goal:
-            # We have excess! This is the "Conversion" part.
-            # We move the excess net income into the Roth IRA.
-            roth_conversion = current_net - annual_spending_goal
-            roth += roth_conversion
-            net_income = annual_spending_goal
-        else:
-            # We have a shortfall. Use Roth to bridge it if possible.
-            shortfall = annual_spending_goal - current_net
-            additional_roth_wd = min(shortfall, roth)
-            roth -= additional_roth_wd
-            roth_withdrawal += additional_roth_wd
+        roth_conversion = 0
+        if enable_roth_conversion:
+            # In bracket-filling mode, any Trad withdrawal that wasn't "needed" to meet the gross target
+            # (or rather, the net resulting from it) is treated as a conversion.
+            # Simplified: If we are filling the bracket, we calculate the 'excess' net income.
 
-            net_income = current_net + additional_roth_wd
+            # Baseline net if we only took enough to meet gross target
+            baseline_trad = min(total_trad, max(0, gross_withdrawal_target - qcd_amount))
+            baseline_ss = calculate_taxable_ss(baseline_trad, pension_income, ss, status)
+            baseline_taxable = max(0, baseline_trad + pension_income + baseline_ss - deduction)
+            baseline_taxes = calculate_tax(baseline_taxable, brackets)
+            baseline_magi = baseline_trad + pension_income + baseline_ss
+            baseline_medicare = calculate_medicare_premium(baseline_magi, status, age) if include_medicare else 0
 
-            # If still short and Roth is empty, we must take more from Trad (ignoring brackets)
-            final_shortfall = annual_spending_goal - net_income
-            if final_shortfall > 0 and trad > 0:
-                # This is a bit of a recursive problem because taking more Trad increases taxes.
-                # Simplified: take enough Trad to cover shortfall + estimated tax (roughly 25-30%)
-                emergency_trad = min(trad, final_shortfall / 0.7)
-                trad -= emergency_trad
-                total_trad += emergency_trad
+            baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare)
 
-                # Recalculate taxes/medicare with emergency withdrawal
-                taxable_ss = calculate_taxable_ss(total_trad, pension_income, ss, status)
-                taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
-                taxes = calculate_tax(taxable_income, brackets)
-                magi = total_trad + pension_income + taxable_ss
-                medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
-
-                net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare)
+            if net_income > baseline_net:
+                roth_conversion = net_income - baseline_net
+                # Note: net_income displayed will be the baseline_net (the "spending amount")
+                # and the surplus goes to Roth.
+                roth += roth_conversion
+                net_income = baseline_net
 
         # 5. RMD Penalty
-        shortfall_rmd = max(0, rmd - total_trad)
+        # Both taxable distributions (total_trad) and QCDs count toward satisfying the RMD.
+        shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
         penalty = shortfall_rmd * 0.25
         net_income -= penalty
 
@@ -281,10 +297,12 @@ def simulate_retirement(
             "Traditional Withdrawal": total_trad,
             "Roth Withdrawal": roth_withdrawal,
             "Roth Conversion": roth_conversion,
+            "QCD Amount": qcd_amount,
             "Traditional Balance": trad,
             "Roth Balance": roth,
             "RMD Required": rmd,
             "RMD Penalty": penalty,
+            "Taxable Income": taxable_income,
             "Taxes": taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income
