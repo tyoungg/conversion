@@ -314,6 +314,7 @@ def simulate_retirement(
             "Roth Balance": roth,
             "RMD Required": rmd,
             "RMD Penalty": penalty,
+            "Taxable Income": taxable_income,
             "Taxes": taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income
