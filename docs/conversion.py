@@ -175,11 +175,11 @@ def simulate_retirement(
 
         # 2025 Standard Deduction + Age 65+ Additional Deduction
         if married:
-            # Married: $31,500 + $1,600 * 2 (assuming both 65+)
-            deduction = 31500 + (3200 if age >= 65 else 0)
+            # Married: $30,000 + $1,600 * 2 (assuming both 65+)
+            deduction = 30000 + (3200 if age >= 65 else 0)
         else:
-            # Single: $15,750 + $2,000 (if 65+)
-            deduction = 15750 + (2000 if age >= 65 else 0)
+            # Single: $15,000 + $2,000 (if 65+)
+            deduction = 15000 + (2000 if age >= 65 else 0)
 
         # Strategy A (22%) or B (24%)
         bracket_limit = brackets[2][1] if strategy == "A" else brackets[3][1]
