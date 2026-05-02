@@ -5,9 +5,11 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
 ## 🚀 Key Features
 
 - **Stable Net Spending Goal:** The simulation derives an annual spending target based on your initial portfolio and a configurable withdrawal rate. It maintains this net income level throughout retirement.
+- **Roth Conversion Toggle:** Users can now decide whether the simulator should intentionally fill tax brackets with Roth conversions. When disabled, the tool only withdraws enough from the Traditional IRA to meet the annual spending goal (still respecting the chosen bracket limit).
+- **Qualified Charitable Distributions (QCDs):** Support for tax-free charitable donations from Traditional IRAs for individuals aged 70½ and older. QCDs correctly satisfy Required Minimum Distribution (RMD) requirements dollar-for-dollar and are excluded from taxable income and MAGI.
 - **Roth Conversion Ladder:**
-    - **Scenario A:** Optimized to fill the **22%** federal tax bracket.
-    - **Scenario B:** Optimized to fill the **24%** federal tax bracket.
+    - **Scenario A:** Optimized to fill the **22%** federal tax bracket (if enabled).
+    - **Scenario B:** Optimized to fill the **24%** federal tax bracket (if enabled).
     - *Logic:* The engine maximizes Traditional IRA withdrawals up to the target bracket. Any net income generated beyond the spending goal is automatically converted to the Roth IRA.
 - **Precise 2025 Tax Engine:**
     - Uses full 7-tier federal tax brackets (Updated for 2025).
@@ -19,7 +21,8 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
     - Factors in IRMAA surcharges based on MAGI (using 2025 tiers).
     - Correctly doubles premiums for married couples.
 - **Account Buffering:**
-    - Fulfills RMDs first (Traditional IRA/401k only).
+    - Applies **QCDs** first (if configured and eligible).
+    - Fulfills **RMDs** (satisfied dollar-for-dollar by QCDs).
     - **Note:** Roth IRAs are correctly modeled as having **zero RMDs**.
     - Uses Roth assets as a buffer if Traditional withdrawals (within optimized brackets) don't meet the spending goal.
     - Automated "Emergency" Traditional withdrawals if Roth assets are exhausted.
@@ -28,7 +31,8 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
 
 1.  **Enter Your Data:** Provide starting ages, portfolio balances, and income sources (Social Security, Pensions).
 2.  **Set Goals:** Define your withdrawal rate and optional fixed Roth withdrawals.
-3.  **Calculate:** The engine runs two parallel simulations (Scenario A and Scenario B).
+3.  **Optimize Strategy:** Choose whether to enable **Roth Conversions** and specify a **QCD Percentage** for charitable giving.
+4.  **Calculate:** The engine runs two parallel simulations (Scenario A and Scenario B).
 4.  **Analyze:**
     - **Summary:** Compare total lifetime taxes, Medicare costs, and ending balances.
     - **Charts:** Visualize account balance depletion and annual Roth conversion amounts.
@@ -40,11 +44,12 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
 - **Simulation Engine:** Written in Python and executed in the browser via **Pyodide**.
 - **Visualizations:** Powered by **Chart.js**.
 - **Withdrawal Priority:**
-    1.  Required Minimum Distributions (RMDs) from Traditional accounts.
-    2.  Fixed Roth Withdrawals (if configured).
-    3.  Optimized Traditional Withdrawals (filling brackets).
-    4.  Roth Buffer (to reach spending goal).
-    5.  Excess Traditional (if goal still not met).
+    1.  **Qualified Charitable Distributions (QCDs)** from Traditional accounts.
+    2.  **Required Minimum Distributions (RMDs)** (Satisfied by QCDs).
+    3.  Fixed Roth Withdrawals (if configured).
+    4.  Optimized Traditional Withdrawals (filling brackets or targeting spending goal).
+    5.  Roth Buffer (to reach spending goal).
+    6.  Excess Traditional (if goal still not met).
 
 ## 📊 2025 Tax Assumptions
 

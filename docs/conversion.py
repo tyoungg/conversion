@@ -86,12 +86,12 @@ def calculate_medicare_premium(magi, filing_status, age):
     return annual_premium * 2 if filing_status == "married" else annual_premium
 
 
-def calculate_rmd(balance, age):
+def calculate_rmd(balance, age, rmd_start_age=73):
     """
     Calculates Required Minimum Distribution.
     Note: Roth IRAs are not subject to RMDs for the original owner.
     """
-    if age < 73 or balance <= 0:
+    if age < rmd_start_age or balance <= 0:
         return 0
 
     # IRS Uniform Lifetime Table (Simplified/Standard)
@@ -125,7 +125,9 @@ def simulate_retirement(
     strategy="B",
     include_rmd=True,
     include_medicare=True,
-    fixed_roth_withdrawal=0
+    fixed_roth_withdrawal=0,
+    enable_roth_conversion=True,
+    qcd_percentage=0
 ):
     # 2025 Tax Brackets (Full 7-tier)
     married_brackets = [
@@ -186,15 +188,26 @@ def simulate_retirement(
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
 
-        # 1. RMD (Mandatory)
+        # 1. QCD and RMD
+        qcd_amount = 0
+        if age >= 70:
+            # 2025 limit: $108,000 per individual
+            qcd_limit = 216000 if status == "married" else 108000
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
+            trad -= qcd_amount
+
+        # RMD (Mandatory)
         # NOTE: Roth IRAs never have Required Minimum Distributions (RMDs) for the original owner.
         # RMDs only apply to Traditional IRA/401(k) balances.
-        rmd = calculate_rmd(prev_trad, age) if include_rmd else 0
-        rmd_taken = min(rmd, trad)
+        rmd = calculate_rmd(prev_trad, age, rmd_start_age) if include_rmd else 0
+        # QCD satisfies RMD dollar-for-dollar
+        rmd_taxable_requirement = max(0, rmd - qcd_amount)
+        rmd_taken = min(rmd_taxable_requirement, trad)
         trad -= rmd_taken
 
-        # 2. Optimized Traditional Withdrawal (Targeting Bracket Limit)
-        # We want to see how much we can withdraw from Trad without exceeding bracket_limit
+        # 2. Optimized Traditional Withdrawal
+        # If enable_roth_conversion is True, we fill the bracket.
+        # If enable_roth_conversion is False, we only withdraw what we need for the goal (capped by bracket).
         low, high = 0, trad
         best_extra = 0
         for _ in range(20):
@@ -202,11 +215,25 @@ def simulate_retirement(
             test_trad = rmd_taken + mid
             t_ss = calculate_taxable_ss(test_trad, pension_income, ss, status)
             t_income = max(0, test_trad + pension_income + t_ss - deduction)
-            if t_income <= bracket_limit:
-                best_extra = mid
-                low = mid
+
+            if enable_roth_conversion:
+                if t_income <= bracket_limit:
+                    best_extra = mid
+                    low = mid
+                else:
+                    high = mid
             else:
-                high = mid
+                # Target annual_spending_goal
+                taxes = calculate_tax(t_income, brackets)
+                magi = test_trad + pension_income + t_ss
+                medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
+                net_available = (test_trad + ss + pension_income) - (taxes + medicare)
+
+                if net_available <= annual_spending_goal and t_income <= bracket_limit:
+                    best_extra = mid
+                    low = mid
+                else:
+                    high = mid
 
         extra_trad = best_extra
         trad -= extra_trad
@@ -267,7 +294,8 @@ def simulate_retirement(
                 net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare)
 
         # 5. RMD Penalty
-        shortfall_rmd = max(0, rmd - total_trad)
+        # Both taxable distributions (total_trad) and QCDs count toward satisfying the RMD.
+        shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
         penalty = shortfall_rmd * 0.25
         net_income -= penalty
 
@@ -281,10 +309,12 @@ def simulate_retirement(
             "Traditional Withdrawal": total_trad,
             "Roth Withdrawal": roth_withdrawal,
             "Roth Conversion": roth_conversion,
+            "QCD Amount": qcd_amount,
             "Traditional Balance": trad,
             "Roth Balance": roth,
             "RMD Required": rmd,
             "RMD Penalty": penalty,
+            "Taxable Income": taxable_income,
             "Taxes": taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income
