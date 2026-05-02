@@ -294,7 +294,8 @@ def simulate_retirement(
                 net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare)
 
         # 5. RMD Penalty
-        shortfall_rmd = max(0, rmd - total_trad)
+        # Both taxable distributions (total_trad) and QCDs count toward satisfying the RMD.
+        shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
         penalty = shortfall_rmd * 0.25
         net_income -= penalty
 
