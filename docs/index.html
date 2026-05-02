@@ -185,6 +185,7 @@
             padding: 30px;
             border-radius: 10px;
             border-left: 4px solid #764ba2;
+            min-width: 0; /* Allow grid item to shrink */
         }
 
         .results-section h2 {
@@ -293,6 +294,25 @@
             border: 1px solid #e0e0e0;
             border-radius: 6px;
             position: relative;
+            width: 100%;
+        }
+
+        /* Enhanced scrollbar for better visibility on all devices */
+        .data-table-container::-webkit-scrollbar {
+            height: 12px;
+            width: 12px;
+        }
+        .data-table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 6px;
+        }
+        .data-table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 6px;
+            border: 3px solid #f1f1f1;
+        }
+        .data-table-container::-webkit-scrollbar-thumb:hover {
+            background: #667eea;
         }
 
         .scroll-hint {
@@ -313,6 +333,7 @@
 
         .data-table {
             width: 100%;
+            min-width: 1200px;
             border-collapse: collapse;
             font-size: 0.85em;
         }
@@ -627,18 +648,18 @@
                                     <tr>
                                         <th>Age</th>
                                         <th>Status</th>
-                                        <th>SS</th>
-                                        <th>Pension</th>
-                                        <th>Taxable Trad W/D</th>
-                                        <th>Roth W/D</th>
-                                        <th>Roth Conv</th>
+                                        <th>Annual SS</th>
+                                        <th>Annual Pension</th>
+                                        <th>Annual Trad W/D</th>
+                                        <th>Annual Roth W/D</th>
+                                        <th>Annual Roth Conv</th>
                                         <th>Trad Bal</th>
                                         <th>Roth Bal</th>
-                                        <th>RMD</th>
-                                        <th>QCD</th>
-                                        <th>Taxes</th>
-                                        <th>Medicare</th>
-                                        <th>Net Income</th>
+                                        <th>Annual RMD</th>
+                                        <th>Annual QCD</th>
+                                        <th>Annual Taxes</th>
+                                        <th>Annual Medicare</th>
+                                        <th>Annual Net Income</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tableBody">
