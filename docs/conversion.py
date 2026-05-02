@@ -188,29 +188,26 @@ def simulate_retirement(
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
 
-        # 1. QCD
+        # 1. QCD and RMD
         qcd_amount = 0
         if age >= 70:
             # 2025 limit: $108,000 per individual
             qcd_limit = 216000 if status == "married" else 108000
-            # User intent: QCD is part of the Gross Withdrawal Target.
-            # However, if QCD percentage is based on Traditional Balance, we respect that.
-            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage, gross_withdrawal_target)
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
-        # 2. RMD (Mandatory)
+        # RMD (Mandatory)
+        # NOTE: Roth IRAs never have Required Minimum Distributions (RMDs) for the original owner.
+        # RMDs only apply to Traditional IRA/401(k) balances.
         rmd = calculate_rmd(prev_trad, age, rmd_start_age) if include_rmd else 0
         # QCD satisfies RMD dollar-for-dollar
         rmd_taxable_requirement = max(0, rmd - qcd_amount)
         rmd_taken = min(rmd_taxable_requirement, trad)
         trad -= rmd_taken
 
-        # 3. Optimized Traditional Withdrawal
-        # Remaining gross target after QCD and RMD
-        remaining_gross_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
-
+        # 2. Optimized Traditional Withdrawal
         # If enable_roth_conversion is True, we fill the bracket.
-        # If enable_roth_conversion is False, we only withdraw up to the remaining gross target (capped by bracket).
+        # If enable_roth_conversion is False, we only withdraw what we need for the goal (capped by bracket).
         low, high = 0, trad
         best_extra = 0
         for _ in range(20):
@@ -226,8 +223,13 @@ def simulate_retirement(
                 else:
                     high = mid
             else:
-                # Target remaining_gross_target
-                if mid <= remaining_gross_target and t_income <= bracket_limit:
+                # Target annual_spending_goal
+                taxes = calculate_tax(t_income, brackets)
+                magi = test_trad + pension_income + t_ss
+                medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
+                net_available = (test_trad + ss + pension_income) - (taxes + medicare)
+
+                if net_available <= annual_spending_goal and t_income <= bracket_limit:
                     best_extra = mid
                     low = mid
                 else:
