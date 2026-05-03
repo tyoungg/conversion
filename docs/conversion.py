@@ -183,7 +183,7 @@ def simulate_retirement(
         trad *= (1 + growth_rate)
         
     # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
-        gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+        gross_withdrawal_target = (trad + roth) * withdrawal_rate
 
 
         # 1. QCD
@@ -192,7 +192,7 @@ def simulate_retirement(
             # 2025 limit: $108,000 per individual
             qcd_limit = 216000 if status == "married" else 108000
             # QCD is taken first from the Gross Withdrawal Target
-            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage, gross_withdrawal_target)
             trad -= qcd_amount
 
         # 2. RMD (Mandatory)
@@ -216,7 +216,7 @@ def simulate_retirement(
             t_income = max(0, test_trad + pension_income + t_ss - deduction)
 
             if enable_roth_conversion:
-                if t_income <= bracket_limit * 0.999:
+                if t_income <= bracket_limit -1:
                     best_extra = mid
                     low = mid
                 else:
@@ -274,7 +274,7 @@ def simulate_retirement(
             if net_income > baseline_net:
                 roth_conversion = net_income - baseline_net
                 roth += roth_conversion
-                net_income -= roth_conversion
+                net_income -= baseline_net
 
         prev_trad = trad
 
