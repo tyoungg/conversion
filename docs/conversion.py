@@ -183,7 +183,7 @@ def simulate_retirement(
         trad *= (1 + growth_rate)
         
     # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
-    gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+        gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
 
 
         # 1. QCD
