@@ -207,7 +207,7 @@ def simulate_retirement(
         remaining_gross_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
 
         # Binary search for extra Traditional withdrawal
-        low, high = 0,  ax(0, trad)
+        low, high = 0,  max(0, trad)
         best_extra = 0
         for _ in range(20):
             mid = (low + high) / 2
