@@ -238,7 +238,7 @@ def simulate_retirement(
         taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
 
-        magi = total_trad + pension_income + taxable_ss # no 2 year lookback simplified
+        magi = total_trad + pension_income + taxable_ss  # no 2 year lookback simplified
         medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
 
         # 5. Roth Withdrawal to meet remaining gross target
@@ -248,33 +248,33 @@ def simulate_retirement(
         roth_withdrawal = min(roth, fixed_roth_withdrawal + remaining_target_for_roth)
         roth -= roth_withdrawal
 
-        # 6. Determine Net Income and Conversion
-        net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare)
+        # 6. RMD Penalty
+        shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
+        penalty = shortfall_rmd * 0.25
+
+        # 7. Determine Net Income and Conversion
+        net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare + penalty)
 
         roth_conversion = 0
         if enable_roth_conversion:
             # Baseline is what we would have withdrawn if only meeting gross target
-            baseline_trad = max(rmd_taken, min(total_trad, gross_withdrawal_target))
+            baseline_trad_extra = min(extra_trad, remaining_gross_target)
+            baseline_trad = rmd_taken + baseline_trad_extra
             baseline_ss = calculate_taxable_ss(baseline_trad, pension_income, ss, status)
             baseline_taxable = max(0, baseline_trad + pension_income + baseline_ss - deduction)
             baseline_taxes = calculate_tax(baseline_taxable, brackets)
             baseline_magi = baseline_trad + pension_income + baseline_ss
             baseline_medicare = calculate_medicare_premium(baseline_magi, status, age) if include_medicare else 0
 
-            baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare)
+            # Baseline penalty check
+            baseline_shortfall = max(0, rmd - (baseline_trad + qcd_amount))
+            baseline_penalty = baseline_shortfall * 0.25
+            baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare + baseline_penalty)
 
-        if conversion_capacity > 0 and net_income > baseline_net:
-            roth_conversion = min(conversion_capacity, net_income - baseline_net)
-            roth += roth_conversion
-            net_income = max(0, net_income - penalty)
-            net_income -= roth_conversion
-
-        # 7. RMD Penalty
-        shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
-        penalty = shortfall_rmd * 0.25
-        net_income = max(0, net_income - penalty)
-# net_income -= penalty
-
+            if net_income > baseline_net:
+                roth_conversion = net_income - baseline_net
+                roth += roth_conversion
+                net_income -= roth_conversion
 
         prev_trad = trad
 
