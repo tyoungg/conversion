@@ -263,7 +263,7 @@ def simulate_retirement(
 
             baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare)
 
-       if conversion_capacity > 0 and net_income > baseline_net:
+        if conversion_capacity > 0 and net_income > baseline_net:
             roth_conversion = min(conversion_capacity, net_income - baseline_net)
             roth += roth_conversion
             net_income = max(0, net_income - penalty)
