@@ -155,9 +155,6 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
-    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
-    gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
-
     # SECURE 2.0 RMD Age Logic
     birth_year = 2025 - start_age
     rmd_start_age = 75 if birth_year >= 1960 else 73
@@ -184,6 +181,10 @@ def simulate_retirement(
         # Grow Accounts
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
+        
+    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
+    gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+
 
         # 1. QCD
         qcd_amount = 0
@@ -191,14 +192,14 @@ def simulate_retirement(
             # 2025 limit: $108,000 per individual
             qcd_limit = 216000 if status == "married" else 108000
             # QCD is taken first from the Gross Withdrawal Target
-            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage, gross_withdrawal_target)
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
         # 2. RMD (Mandatory)
         rmd = calculate_rmd(prev_trad, age, rmd_start_age) if include_rmd else 0
         # QCD satisfies RMD dollar-for-dollar
         rmd_taxable_requirement = max(0, rmd - qcd_amount)
-        rmd_taken = min(rmd_taxable_requirement, trad)
+        rmd_taken = min(trad, rmd_taxable_requirement)
         trad -= rmd_taken
 
         # 3. Optimized Traditional Withdrawal
@@ -206,7 +207,7 @@ def simulate_retirement(
         remaining_gross_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
 
         # Binary search for extra Traditional withdrawal
-        low, high = 0, trad
+        low, high = 0,  ax(0, trad)
         best_extra = 0
         for _ in range(20):
             mid = (low + high) / 2
@@ -215,7 +216,7 @@ def simulate_retirement(
             t_income = max(0, test_trad + pension_income + t_ss - deduction)
 
             if enable_roth_conversion:
-                if t_income <= bracket_limit:
+                if t_income <= bracket_limit * 0.999:
                     best_extra = mid
                     low = mid
                 else:
@@ -237,7 +238,7 @@ def simulate_retirement(
         taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
         taxes = calculate_tax(taxable_income, brackets)
 
-        magi = total_trad + pension_income + taxable_ss
+        magi = total_trad + pension_income + taxable_ss # no 2 year lookback simplified
         medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
 
         # 5. Roth Withdrawal to meet remaining gross target
@@ -253,7 +254,7 @@ def simulate_retirement(
         roth_conversion = 0
         if enable_roth_conversion:
             # Baseline is what we would have withdrawn if only meeting gross target
-            baseline_trad = max(rmd_taken, min(total_trad, max(0, gross_withdrawal_target - qcd_amount)))
+            baseline_trad = max(rmd_taken, min(total_trad, gross_withdrawal_target))
             baseline_ss = calculate_taxable_ss(baseline_trad, pension_income, ss, status)
             baseline_taxable = max(0, baseline_trad + pension_income + baseline_ss - deduction)
             baseline_taxes = calculate_tax(baseline_taxable, brackets)
@@ -262,15 +263,18 @@ def simulate_retirement(
 
             baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare)
 
-            if net_income > baseline_net:
-                roth_conversion = net_income - baseline_net
-                roth += roth_conversion
-                net_income = baseline_net
+if conversion_capacity > 0 and net_income > baseline_net:
+   roth_conversion = min(conversion_capacity, net_income - baseline_net)
+   roth += roth_conversion
+   net_income = max(0, net_income - penalty)
+net_income -= roth_conversion
 
         # 7. RMD Penalty
         shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
         penalty = shortfall_rmd * 0.25
-        net_income -= penalty
+        net_income = max(0, net_income - penalty)
+# net_income -= penalty
+
 
         prev_trad = trad
 
