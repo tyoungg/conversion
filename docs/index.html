@@ -445,6 +445,7 @@
                         <li><strong>Enable Roth Conversions:</strong> If checked, the tool fills the 22% (A) or 24% (B) brackets with conversions when income is below the limit. <em>Note: If this is ON, your taxes may remain high even with QCDs because the "saved" tax room is immediately filled with Roth conversions.</em></li>
                         <li><strong>QCD Percentage:</strong> For ages 70.5+, specifies the % of your Traditional IRA to donate to charity. <strong>QCDs are taken first from your Withdrawal Target</strong>, reducing the taxable portion of your withdrawal and lowering your taxes.</li>
                         <li><strong>Spouse Death Age:</strong> Simulates the "Widow's Penalty" by switching to Single filing status and adjusted Social Security in that year.</li>
+                        <li><strong>Taxable Income:</strong> Calculated as (Taxable Trad W/D) + (Pension) + (Taxable portion of Social Security) - (Standard Deduction). <em>Note: Social Security is taxed at 0%, 50%, or 85% based on IRS provisional income rules.</em></li>
                     </ul>
                 </div>
                 <h2>Plan Your Retirement</h2>
@@ -640,7 +641,8 @@
                     </div>
 
                     <div id="details" class="tab-content">
-                        <p style="color: #666; margin-bottom: 15px;">Scenario A - Year-by-Year Breakdown:</p>
+                        <p style="color: #666; margin-bottom: 5px;">Scenario A - Year-by-Year Breakdown:</p>
+                        <p style="color: #666; font-size: 0.8em; margin-bottom: 15px;"><em>Formula: Taxable Income = Taxable Trad W/D + Pension + Taxable SS - Standard Deduction</em></p>
                         <div class="scroll-hint">↔ Scroll for more</div>
                         <div class="data-table-container">
                             <table class="data-table" id="dataTable">
