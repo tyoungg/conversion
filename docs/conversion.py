@@ -142,9 +142,11 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
-    # Gross Withdrawal Target
+    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
+    # Calculated once based on initial portfolio to maintain a stable spending goal.
     gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
 
+    # SECURE 2.0 RMD Age Logic
     birth_year = 2025 - start_age
     rmd_start_age = 75 if birth_year >= 1960 else 73
 
@@ -169,6 +171,8 @@ def simulate_retirement(
         qcd_amount = 0
         if age >= 70:
             qcd_limit = 216000 if status == "married" else 108000
+            # QCD is taken from the Traditional balance based on user percentage.
+            # It satisfies RMD requirements and reduces the taxable portion of withdrawals.
             qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
@@ -233,13 +237,24 @@ def simulate_retirement(
         # 7. Conversion
         roth_conv = 0
         if enable_roth_conversion:
-            baseline_extra = min(extra_trad, max(0, gross_withdrawal_target - qcd_amount - rmd_taken))
-            _, b_tax, b_med = get_tax_data(rmd_taken + baseline_extra)
-            b_net = (rmd_taken + baseline_extra + ss + pension_income + roth_wd) - (b_tax + b_med + penalty)
-            if net_income > b_net:
-                roth_conv = net_income - b_net
-                roth += roth_conv
-                net_income -= roth_conv
+            # Baseline is what we would have withdrawn if only meeting gross target
+            baseline_trad_extra = min(extra_trad, remaining_gross_target)
+            baseline_trad = rmd_taken + baseline_trad_extra
+            baseline_ss = calculate_taxable_ss(baseline_trad, pension_income, ss, status)
+            baseline_taxable = max(0, baseline_trad + pension_income + baseline_ss - deduction)
+            baseline_taxes = calculate_tax(baseline_taxable, brackets)
+            baseline_magi = baseline_trad + pension_income + baseline_ss
+            baseline_medicare = calculate_medicare_premium(baseline_magi, status, age) if include_medicare else 0
+
+            # Baseline penalty check
+            baseline_shortfall = max(0, rmd - (baseline_trad + qcd_amount))
+            baseline_penalty = baseline_shortfall * 0.25
+            baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare + baseline_penalty)
+
+            if net_income > baseline_net:
+                roth_conversion = net_income - baseline_net
+                roth += roth_conversion
+                net_income -= roth_conversion
 
         prev_trad = trad
 
