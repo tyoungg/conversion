@@ -47,10 +47,9 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
 - **Withdrawal Priority:**
     1.  **Qualified Charitable Distributions (QCDs)** from Traditional accounts.
     2.  **Required Minimum Distributions (RMDs)** (Satisfied by QCDs).
-    3.  Fixed Roth Withdrawals (if configured).
-    4.  Optimized Traditional Withdrawals (filling brackets or targeting spending goal).
-    5.  Roth Buffer (to reach spending goal).
-    6.  Excess Traditional (if goal still not met).
+    3.  **Traditional IRA Withdrawals**: Drains Traditional assets first to meet the annual Gross Withdrawal Target.
+    4.  **Roth IRA Buffer**: Used only if Traditional assets are exhausted or for specific `Fixed Roth Withdrawals`.
+    5.  **Roth Conversions (Optional)**: If enabled, "tops off" the 22% or 24% bracket *after* the spending goal is met.
 
 ## 📊 2025 Tax Assumptions
 

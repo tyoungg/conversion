@@ -142,11 +142,9 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
-    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
-    # Calculated once based on initial portfolio to maintain a stable spending goal.
+    # Gross Withdrawal Target
     gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
 
-    # SECURE 2.0 RMD Age Logic
     birth_year = 2025 - start_age
     rmd_start_age = 75 if birth_year >= 1960 else 73
 
@@ -171,8 +169,6 @@ def simulate_retirement(
         qcd_amount = 0
         if age >= 70:
             qcd_limit = 216000 if status == "married" else 108000
-            # QCD is taken from the Traditional balance based on user percentage.
-            # It satisfies RMD requirements and reduces the taxable portion of withdrawals.
             qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
@@ -190,71 +186,53 @@ def simulate_retirement(
             t_med = calculate_medicare_premium(t_magi, status, age) if include_medicare else 0
             return t_inc, t_tax, t_med
 
-        # 3. Optimized Withdrawal
+        # 3. Withdrawal Logic: Prioritize Traditional to meet target
         remaining_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
+        trad_for_target = min(trad, remaining_target)
+        trad -= trad_for_target
+        current_trad_wd = rmd_taken + trad_for_target
 
-        low, high = 0, trad
-        best_extra = 0
-        for _ in range(40):
-            mid = (low + high) / 2
-            t_inc, _, _ = get_tax_data(rmd_taken + mid)
-            if enable_roth_conversion:
-                if t_inc <= bracket_limit - 1:
-                    best_extra = mid
-                    low = mid
-                else:
-                    high = mid
-            else:
-                if mid <= remaining_target and t_inc <= bracket_limit:
-                    best_extra = mid
-                    low = mid
-                else:
-                    high = mid
-
-        extra_trad = best_extra
-        trad -= extra_trad
-        current_trad_wd = rmd_taken + extra_trad
-
-        # 4. Roth Withdrawal
+        # 4. Roth Withdrawal (Buffer if Trad was insufficient for target)
         remaining_target = max(0, gross_withdrawal_target - qcd_amount - current_trad_wd)
         roth_wd = min(roth, fixed_roth_withdrawal + remaining_target)
         roth -= roth_wd
 
-        # 5. Emergency Trad
-        remaining_target = max(0, gross_withdrawal_target - qcd_amount - current_trad_wd - roth_wd)
-        if remaining_target > 0 and trad > 0:
-            emergency = min(trad, remaining_target)
-            trad -= emergency
-            current_trad_wd += emergency
-
-        # 6. Taxes & Penalty
-        taxable_income, taxes, medicare = get_tax_data(current_trad_wd)
-        shortfall = max(0, rmd - (current_trad_wd + qcd_amount))
-        penalty = shortfall * 0.25
-
-        net_income = (current_trad_wd + ss + pension_income + roth_wd) - (taxes + medicare + penalty)
-
-        # 7. Conversion
+        # 5. Conversion Logic (Top off bracket if enabled)
         roth_conv = 0
+        best_surplus = 0
         if enable_roth_conversion:
-            # Baseline is what we would have withdrawn if only meeting gross target
-            baseline_trad_extra = min(extra_trad, remaining_gross_target)
-            baseline_trad = rmd_taken + baseline_trad_extra
-            baseline_ss = calculate_taxable_ss(baseline_trad, pension_income, ss, status)
-            baseline_taxable = max(0, baseline_trad + pension_income + baseline_ss - deduction)
-            baseline_taxes = calculate_tax(baseline_taxable, brackets)
-            baseline_magi = baseline_trad + pension_income + baseline_ss
-            baseline_medicare = calculate_medicare_premium(baseline_magi, status, age) if include_medicare else 0
+            low, high = 0, trad
+            for _ in range(40):
+                mid = (low + high) / 2
+                t_inc, _, _ = get_tax_data(current_trad_wd + mid)
+                if t_inc <= bracket_limit - 1:
+                    best_surplus = mid
+                    low = mid
+                else:
+                    high = mid
 
-            # Baseline penalty check
-            baseline_shortfall = max(0, rmd - (baseline_trad + qcd_amount))
-            baseline_penalty = baseline_shortfall * 0.25
-            baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare + baseline_penalty)
+            if best_surplus > 0:
+                _, taxes_now, med_now = get_tax_data(current_trad_wd + best_surplus)
+                _, taxes_base, med_base = get_tax_data(current_trad_wd)
 
-            if net_income > baseline_net:
-                roth_conversion = net_income - baseline_net
-                roth += roth_conversion
-                net_income -= roth_conversion
+                shortfall_now = max(0, rmd - (current_trad_wd + best_surplus + qcd_amount))
+                shortfall_base = max(0, rmd - (current_trad_wd + qcd_amount))
+                penalty_now = shortfall_now * 0.25
+                penalty_base = shortfall_base * 0.25
+
+                net_now = (current_trad_wd + best_surplus + ss + pension_income + roth_wd) - (taxes_now + med_now + penalty_now)
+                net_base = (current_trad_wd + ss + pension_income + roth_wd) - (taxes_base + med_base + penalty_base)
+
+                if net_now > net_base:
+                    roth_conv = net_now - net_base
+                    trad -= best_surplus
+                    roth += roth_conv
+
+        total_withdrawn_this_year = current_trad_wd + (best_surplus if roth_conv > 0 else 0)
+        taxable_income, taxes, medicare = get_tax_data(total_withdrawn_this_year)
+        shortfall = max(0, rmd - (total_withdrawn_this_year + qcd_amount))
+        penalty = shortfall * 0.25
+        net_income = (total_withdrawn_this_year + ss + pension_income + roth_wd) - (taxes + medicare + penalty + roth_conv)
 
         prev_trad = trad
 
@@ -263,7 +241,7 @@ def simulate_retirement(
             "Filing Status": status,
             "Social Security": ss,
             "Pension": pension_income,
-            "Taxable Trad W/D": current_trad_wd,
+            "Taxable Trad W/D": total_withdrawn_this_year,
             "Roth Withdrawal": roth_wd,
             "Roth Conversion": roth_conv,
             "QCD Amount": qcd_amount,
@@ -275,7 +253,7 @@ def simulate_retirement(
             "Taxes": taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income,
-            "Total Outflow": current_trad_wd + roth_wd + qcd_amount
+            "Total Outflow": total_withdrawn_this_year + roth_wd + qcd_amount
         })
 
     return results
