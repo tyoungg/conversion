@@ -155,6 +155,10 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
+    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
+    # Calculated once based on initial portfolio to maintain a stable spending goal.
+    gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+
     # SECURE 2.0 RMD Age Logic
     birth_year = 2025 - start_age
     rmd_start_age = 75 if birth_year >= 1960 else 73
@@ -181,18 +185,15 @@ def simulate_retirement(
         # Grow Accounts
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
-        
-    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
-        gross_withdrawal_target = (trad + roth) * withdrawal_rate
-
 
         # 1. QCD
         qcd_amount = 0
         if age >= 70:
             # 2025 limit: $108,000 per individual
             qcd_limit = 216000 if status == "married" else 108000
-            # QCD is taken first from the Gross Withdrawal Target
-            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage, gross_withdrawal_target)
+            # QCD is taken from the Traditional balance based on user percentage.
+            # It satisfies RMD requirements and reduces the taxable portion of withdrawals.
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
         # 2. RMD (Mandatory)
@@ -274,7 +275,7 @@ def simulate_retirement(
             if net_income > baseline_net:
                 roth_conversion = net_income - baseline_net
                 roth += roth_conversion
-                net_income -= baseline_net
+                net_income -= roth_conversion
 
         prev_trad = trad
 

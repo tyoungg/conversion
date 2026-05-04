@@ -71,3 +71,29 @@ test('RMD Satisfaction via QCD', async ({ page }) => {
   const netIncomeVal = parseFloat(netIncome.replace(/[^0-9.-]+/g,""));
   expect(netIncomeVal).toBeGreaterThan(60000);
 });
+
+test('RMD overrides Target if higher', async ({ page }) => {
+  await page.goto('http://localhost:8080/index.html');
+
+  // Set up scenario: RMD will be ~75k, but target is only 20k
+  await page.fill('#startAge', '73');
+  await page.fill('#endAge', '74');
+  await page.fill('#initialTrad', '2,000,000');
+  await page.fill('#initialRoth', '0');
+  await page.fill('#withdrawalRate', '1'); // 1% of 2M = 20,000
+  await page.uncheck('#enableConversion');
+
+  await page.click('button:has-text("Calculate Scenarios")');
+  await expect(page.locator('#resultsContent')).toBeVisible({ timeout: 20000 });
+
+  await page.click('button:has-text("Year-by-Year")');
+
+  // Age(1), Status(2), SS(3), Pension(4), Trad WD(5)
+  const tradWD = await page.locator('#tableBody tr:first-child td:nth-child(5)').innerText();
+  const tradWDVal = parseFloat(tradWD.replace(/[^0-9.-]+/g,""));
+
+  // RMD = 2,000,000 / 26.5 = 75,471.70
+  // Target = 20,000
+  // tradWDVal should be around 75,472
+  expect(tradWDVal).toBeGreaterThan(75000);
+});
