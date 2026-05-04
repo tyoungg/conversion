@@ -12,6 +12,11 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
     - **Scenario A:** Optimized to fill the **22%** federal tax bracket (if enabled).
     - **Scenario B:** Optimized to fill the **24%** federal tax bracket (if enabled).
     - *Logic:* The engine maximizes Traditional IRA withdrawals up to the target bracket. Any net income generated beyond the spending goal is automatically converted to the Roth IRA.
+- **Dynamic Social Security Modeling:**
+    - Calculates individual benefits based on **Full Retirement Age (FRA)** (65-67 based on birth year).
+    - Adjusts for early claiming (down to age 62) or delayed credits (up to age 70).
+    - Models **Spousal Benefits**: Up to 50% of the primary earner's FRA benefit (reduced if claimed early).
+    - Handles survivor benefits (higher of the two) and supports "Single" filing scenarios.
 - **Precise 2025 Tax Engine:**
     - Uses full 7-tier federal tax brackets (Updated for 2025).
     - Includes the **IRS tiered Social Security taxation formula** (0%, 50%, and 85% tiers).

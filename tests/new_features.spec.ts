@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('QCD and Roth Conversion Toggle', async ({ page }) => {
+test('Dynamic Social Security Claiming Age', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.fill('#startAge', '70');
   await page.fill('#endAge', '75');
@@ -13,7 +13,7 @@ test('QCD and Roth Conversion Toggle', async ({ page }) => {
   expect(parseFloat(qcdAText.replace(/[^0-9.-]+/g,""))).toBeGreaterThan(0);
 });
 
-test('RMD Satisfaction via QCD', async ({ page }) => {
+test('Spousal Benefit Higher than Own', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.fill('#startAge', '80');
   await page.fill('#initialTrad', '1,000,000');

@@ -1,4 +1,63 @@
 # -----------------------------
+# SOCIAL SECURITY LOGIC
+# -----------------------------
+def get_fra(birth_year):
+    """Returns Full Retirement Age (FRA) in years and months based on birth year."""
+    if birth_year <= 1937:
+        return 65, 0
+    if birth_year == 1938:
+        return 65, 2
+    if birth_year == 1939:
+        return 65, 4
+    if birth_year == 1940:
+        return 65, 6
+    if birth_year == 1941:
+        return 65, 8
+    if birth_year == 1942:
+        return 65, 10
+    if 1943 <= birth_year <= 1954:
+        return 66, 0
+    if birth_year == 1955:
+        return 66, 2
+    if birth_year == 1956:
+        return 66, 4
+    if birth_year == 1957:
+        return 66, 6
+    if birth_year == 1958:
+        return 66, 8
+    if birth_year == 1959:
+        return 66, 10
+    return 67, 0
+
+def calculate_adjusted_ss(monthly_fra_benefit, claim_age, birth_year):
+    """Calculates the adjusted monthly Social Security benefit based on claiming age."""
+    fra_years, fra_months = get_fra(birth_year)
+    fra_total_months = fra_years * 12 + fra_months
+    claim_total_months = int(claim_age * 12)
+
+    diff_months = claim_total_months - fra_total_months
+
+    if diff_months == 0:
+        return monthly_fra_benefit
+
+    if diff_months > 0:
+        # Delayed Retirement Credits: 8% per year (2/3 of 1% per month)
+        # Only up to age 70
+        months_to_70 = min(diff_months, (70 * 12) - fra_total_months)
+        return monthly_fra_benefit * (1 + (months_to_70 * (2/3 / 100)))
+    else:
+        # Reduction for early claiming
+        # 5/9 of 1% for each month up to 36 months
+        # 5/12 of 1% for each month beyond 36 months
+        months_early = abs(diff_months)
+        reduction = 0
+        if months_early <= 36:
+            reduction = months_early * (5/9 / 100)
+        else:
+            reduction = (36 * (5/9 / 100)) + ((months_early - 36) * (5/12 / 100))
+        return monthly_fra_benefit * (1 - reduction)
+
+# -----------------------------
 # TAX FUNCTIONS
 # -----------------------------
 def calculate_tax(taxable_income, brackets):
@@ -105,8 +164,6 @@ def simulate_retirement(
     initial_roth_balance,
     initial_trad_balance,
     growth_rate,
-    married_ss_income,
-    single_ss_income,
     pension_income,
     withdrawal_rate,
     strategy="B",
@@ -114,7 +171,15 @@ def simulate_retirement(
     include_medicare=True,
     fixed_roth_withdrawal=0,
     enable_roth_conversion=True,
-    qcd_percentage=0
+    qcd_percentage=0,
+    # New SS Parameters
+    filing_status="married",
+    ss_primary_fra=3000,
+    birth_year_primary=1960,
+    claim_age_primary=67,
+    ss_spouse_fra=1500,
+    birth_year_spouse=1962,
+    claim_age_spouse=67
 ):
     # 2025 Tax Brackets
     married_brackets = [
