@@ -445,7 +445,7 @@
                         <li><strong>Enable Roth Conversions:</strong> If checked, the tool fills the 22% (A) or 24% (B) brackets with conversions when income is below the limit. <em>Note: If this is ON, your taxes may remain high even with QCDs because the "saved" tax room is immediately filled with Roth conversions.</em></li>
                         <li><strong>QCD Percentage:</strong> For ages 70.5+, specifies the % of your Traditional IRA to donate to charity. <strong>QCDs are taken first from your Withdrawal Target</strong>, reducing the taxable portion of your withdrawal and lowering your taxes.</li>
                         <li><strong>Spouse Death Age:</strong> Simulates the "Widow's Penalty" by switching to Single filing status and adjusted Social Security in that year.</li>
-                        <li><strong>Taxable Income:</strong> Calculated as (Taxable Trad W/D) + (Pension) + (Taxable portion of Social Security) - (Standard Deduction). <em>Note: Social Security is taxed at 0%, 50%, or 85% based on IRS provisional income rules.</em></li>
+                        <li><strong>Taxable Income:</strong> This is your <strong>Net Taxable Income</strong> after subtracting the 2025 Standard Deduction ($15k Single / $30k Married + 65+ additions) and applying tiered Social Security taxation. <em>Formula: (Taxable Trad W/D) + (Pension) + (Taxable SS) - (Deduction).</em></li>
                     </ul>
                 </div>
                 <h2>Plan Your Retirement</h2>
@@ -557,6 +557,11 @@
                         <label for="qcdPercentage">QCD Percentage (%)</label>
                         <input type="number" id="qcdPercentage" value="0" min="0" max="100" step="0.1" required>
                         <small>Percentage of traditional IRA to donate as QCD (70.5+). QCDs satisfy RMD requirements dollar-for-dollar.</small>
+                    </div>
+
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="useRothBuffer" checked style="width: auto;">
+                        <label for="useRothBuffer" style="margin-bottom: 0;">Use Roth as spending buffer</label>
                     </div>
 
                     <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
@@ -817,6 +822,7 @@
                     pension_income: parseInput('pension'),
                     withdrawal_rate: (parseFloat(document.getElementById('withdrawalRate').value) || 0) / 100,
                     fixed_roth_withdrawal: parseInput('fixedRothWD'),
+                    use_roth_buffer: document.getElementById('useRothBuffer').checked,
                     qcd_percentage: (parseFloat(document.getElementById('qcdPercentage').value) || 0) / 100,
                     enable_roth_conversion: document.getElementById('enableConversion').checked,
                     filing_status: document.getElementById('filingStatus').value,
