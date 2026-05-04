@@ -26,7 +26,7 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
     - Fulfills **RMDs** (satisfied dollar-for-dollar by QCDs).
     - **Note:** Roth IRAs are correctly modeled as having **zero RMDs**.
     - Uses Roth assets as a buffer if Traditional withdrawals (within optimized brackets) don't meet the spending goal.
-    - Automated "Emergency" Traditional withdrawals if Roth assets are exhausted.
+    - **Automated "Emergency" Traditional Withdrawals:** If the Gross Withdrawal Target is still not met after exhausting Roth assets, the simulation will pull the remaining amount from Traditional accounts, even if it pushes taxable income into higher brackets.
 
 ## 🛠 Usage
 
@@ -47,10 +47,9 @@ A high-fidelity retirement withdrawal and tax optimization engine. This tool hel
 - **Withdrawal Priority:**
     1.  **Qualified Charitable Distributions (QCDs)** from Traditional accounts.
     2.  **Required Minimum Distributions (RMDs)** (Satisfied by QCDs).
-    3.  Fixed Roth Withdrawals (if configured).
-    4.  Optimized Traditional Withdrawals (filling brackets or targeting spending goal).
-    5.  Roth Buffer (to reach spending goal).
-    6.  Excess Traditional (if goal still not met).
+    3.  **Traditional IRA Withdrawals**: Drains Traditional assets first to meet the annual Gross Withdrawal Target.
+    4.  **Roth IRA Buffer**: Used only if Traditional assets are exhausted or for specific `Fixed Roth Withdrawals`.
+    5.  **Roth Conversions (Optional)**: If enabled, "tops off" the 22% or 24% bracket *after* the spending goal is met.
 
 ## 📊 2025 Tax Assumptions
 

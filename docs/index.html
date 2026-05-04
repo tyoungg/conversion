@@ -650,7 +650,7 @@
                                         <th>Status</th>
                                         <th>Annual SS</th>
                                         <th>Annual Pension</th>
-                                        <th>Annual Trad W/D</th>
+                                        <th>Taxable Trad W/D</th>
                                         <th>Annual Roth W/D</th>
                                         <th>Annual Roth Conv</th>
                                         <th>Trad Bal</th>
@@ -662,6 +662,7 @@
                                         <th>Annual Taxes</th>
                                         <th>Annual Medicare</th>
                                         <th>Annual Net Income</th>
+                                        <th>Total Portfolio Outflow</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tableBody">
@@ -902,7 +903,7 @@ output
                     <td>${row["Filing Status"]}</td>
                     <td>${formatCurrency(row["Social Security"])}</td>
                     <td>${formatCurrency(row["Pension"])}</td>
-                    <td>${formatCurrency(row["Traditional Withdrawal"])}</td>
+                    <td>${formatCurrency(row["Taxable Trad W/D"])}</td>
                     <td>${formatCurrency(row["Roth Withdrawal"])}</td>
                     <td>${formatCurrency(row["Roth Conversion"])}</td>
                     <td>${formatCurrency(row["Traditional Balance"])}</td>
@@ -914,6 +915,7 @@ output
                     <td>${formatCurrency(row["Taxes"])}</td>
                     <td>${formatCurrency(row["Medicare Cost"])}</td>
                     <td>${formatCurrency(row["Net Income"])}</td>
+                    <td>${formatCurrency(row["Total Outflow"])}</td>
                 `;
                 tbody.appendChild(tr);
             });
