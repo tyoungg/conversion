@@ -41,11 +41,6 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
     taxable_85 = 0.85 * tier2_amt
 
     # Tiered amount logic:
-    # 1. Start with 85% of excess over T2
-    # 2. Add the smallest of:
-    #    a) The 50% tier amount calculated above
-    #    b) 50% of the SS benefit
-    #    c) The max allowance for tier 1 ($6000 for married, $4500 for single)
     combined_tiered = taxable_85 + min(taxable_50, 0.5 * ss_income, max_50_pct_tier)
 
     # Total taxable is the smaller of the tiered result or 85% of total SS.
@@ -58,25 +53,19 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
 def calculate_medicare_premium(magi, filing_status, age):
     """
     Calculates annual Medicare Part B premiums including IRMAA based on 2025 rates.
-    Doubles the premium for married couples (assuming both are 65+).
     """
     if age < 65:
         return 0
 
-    # 2025 IRMAA Thresholds (MAGI from 2 years prior, but using 2025 brackets for simulation)
     if filing_status == "married":
         brackets = [212000, 266000, 334000, 400000, 750000]
     else:
         brackets = [106000, 133000, 167000, 200000, 500000]
 
-    # 2025 Monthly Premiums (Part B)
-    # $185.00 standard, then IRMAA tiers
     premiums = [185.00, 259.00, 370.00, 480.90, 591.90, 628.90]
 
     selected_premium = premiums[-1]
     for i, limit in enumerate(brackets):
-        # For the final bracket ($500k/$750k), the top tier starts at "greater than or equal to".
-        # All lower tiers use "up to" (inclusive).
         is_last_bracket = (i == len(brackets) - 1)
         if (magi < limit if is_last_bracket else magi <= limit):
             selected_premium = premiums[i]
@@ -89,12 +78,10 @@ def calculate_medicare_premium(magi, filing_status, age):
 def calculate_rmd(balance, age, rmd_start_age=73):
     """
     Calculates Required Minimum Distribution.
-    Note: Roth IRAs are not subject to RMDs for the original owner.
     """
     if age < rmd_start_age or balance <= 0:
         return 0
 
-    # IRS Uniform Lifetime Table (Simplified/Standard)
     divisors = {
         73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9,
         78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
@@ -129,7 +116,7 @@ def simulate_retirement(
     enable_roth_conversion=True,
     qcd_percentage=0
 ):
-    # 2025 Tax Brackets (Full 7-tier)
+    # 2025 Tax Brackets
     married_brackets = [
         (0, 23850, 0.10),
         (23850, 96950, 0.12),
@@ -155,75 +142,66 @@ def simulate_retirement(
     trad = initial_trad_balance
     prev_trad = initial_trad_balance
 
-    # SECURE 2.0 RMD Age Logic
+    # Gross Withdrawal Target
+    gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
+
     birth_year = 2025 - start_age
     rmd_start_age = 75 if birth_year >= 1960 else 73
 
     for age in range(start_age, end_age + 1):
-        # IRS rule: You can file Married Filing Jointly for the year your spouse dies.
         married = age <= spouse_death_age
         status = "married" if married else "single"
         ss = married_ss_income if married else single_ss_income
-
         brackets = married_brackets if married else single_brackets
 
-        # 2025 Standard Deduction + Age 65+ Additional Deduction
         if married:
-            # Married: $30,000 + $1,600 * 2 (assuming both 65+)
             deduction = 30000 + (3200 if age >= 65 else 0)
         else:
-            # Single: $15,000 + $2,000 (if 65+)
             deduction = 15000 + (2000 if age >= 65 else 0)
 
-        # Strategy A (22%) or B (24%)
         bracket_limit = brackets[2][1] if strategy == "A" else brackets[3][1]
 
         # Grow Accounts
         roth *= (1 + growth_rate)
         trad *= (1 + growth_rate)
-        
-    # Gross Withdrawal Target (Total amount to pull from accounts before taxes)
-        gross_withdrawal_target = (trad + roth) * withdrawal_rate
-
 
         # 1. QCD
         qcd_amount = 0
         if age >= 70:
-            # 2025 limit: $108,000 per individual
             qcd_limit = 216000 if status == "married" else 108000
-            # QCD is taken first from the Gross Withdrawal Target
-            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage, gross_withdrawal_target)
+            qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
-        # 2. RMD (Mandatory)
+        # 2. RMD
         rmd = calculate_rmd(prev_trad, age, rmd_start_age) if include_rmd else 0
-        # QCD satisfies RMD dollar-for-dollar
         rmd_taxable_requirement = max(0, rmd - qcd_amount)
         rmd_taken = min(trad, rmd_taxable_requirement)
         trad -= rmd_taken
 
-        # 3. Optimized Traditional Withdrawal
-        # Remaining gross target after QCD and RMD
-        remaining_gross_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
+        def get_tax_data(test_trad_total):
+            t_ss = calculate_taxable_ss(test_trad_total, pension_income, ss, status)
+            t_inc = max(0, test_trad_total + pension_income + t_ss - deduction)
+            t_tax = calculate_tax(t_inc, brackets)
+            t_magi = test_trad_total + pension_income + t_ss
+            t_med = calculate_medicare_premium(t_magi, status, age) if include_medicare else 0
+            return t_inc, t_tax, t_med
 
-        # Binary search for extra Traditional withdrawal
-        low, high = 0,  max(0, trad)
+        # 3. Optimized Withdrawal
+        remaining_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
+
+        low, high = 0, trad
         best_extra = 0
-        for _ in range(20):
+        for _ in range(40):
             mid = (low + high) / 2
-            test_trad = rmd_taken + mid
-            t_ss = calculate_taxable_ss(test_trad, pension_income, ss, status)
-            t_income = max(0, test_trad + pension_income + t_ss - deduction)
-
+            t_inc, _, _ = get_tax_data(rmd_taken + mid)
             if enable_roth_conversion:
-                if t_income <= bracket_limit -1:
+                if t_inc <= bracket_limit - 1:
                     best_extra = mid
                     low = mid
                 else:
                     high = mid
             else:
-                # Without conversions, only withdraw up to the remaining gross target
-                if mid <= remaining_gross_target and t_income <= bracket_limit:
+                if mid <= remaining_target and t_inc <= bracket_limit:
                     best_extra = mid
                     low = mid
                 else:
@@ -231,50 +209,37 @@ def simulate_retirement(
 
         extra_trad = best_extra
         trad -= extra_trad
-        total_trad = rmd_taken + extra_trad
+        current_trad_wd = rmd_taken + extra_trad
 
-        # 4. Calculate Taxes and Medicare
-        taxable_ss = calculate_taxable_ss(total_trad, pension_income, ss, status)
-        taxable_income = max(0, total_trad + pension_income + taxable_ss - deduction)
-        taxes = calculate_tax(taxable_income, brackets)
+        # 4. Roth Withdrawal
+        remaining_target = max(0, gross_withdrawal_target - qcd_amount - current_trad_wd)
+        roth_wd = min(roth, fixed_roth_withdrawal + remaining_target)
+        roth -= roth_wd
 
-        magi = total_trad + pension_income + taxable_ss  # no 2 year lookback simplified
-        medicare = calculate_medicare_premium(magi, status, age) if include_medicare else 0
+        # 5. Emergency Trad
+        remaining_target = max(0, gross_withdrawal_target - qcd_amount - current_trad_wd - roth_wd)
+        if remaining_target > 0 and trad > 0:
+            emergency = min(trad, remaining_target)
+            trad -= emergency
+            current_trad_wd += emergency
 
-        # 5. Roth Withdrawal to meet remaining gross target
-        gross_so_far = qcd_amount + total_trad
-        remaining_target_for_roth = max(0, gross_withdrawal_target - gross_so_far)
+        # 6. Taxes & Penalty
+        taxable_income, taxes, medicare = get_tax_data(current_trad_wd)
+        shortfall = max(0, rmd - (current_trad_wd + qcd_amount))
+        penalty = shortfall * 0.25
 
-        roth_withdrawal = min(roth, fixed_roth_withdrawal + remaining_target_for_roth)
-        roth -= roth_withdrawal
+        net_income = (current_trad_wd + ss + pension_income + roth_wd) - (taxes + medicare + penalty)
 
-        # 6. RMD Penalty
-        shortfall_rmd = max(0, rmd - (total_trad + qcd_amount))
-        penalty = shortfall_rmd * 0.25
-
-        # 7. Determine Net Income and Conversion
-        net_income = (total_trad + ss + pension_income + roth_withdrawal) - (taxes + medicare + penalty)
-
-        roth_conversion = 0
+        # 7. Conversion
+        roth_conv = 0
         if enable_roth_conversion:
-            # Baseline is what we would have withdrawn if only meeting gross target
-            baseline_trad_extra = min(extra_trad, remaining_gross_target)
-            baseline_trad = rmd_taken + baseline_trad_extra
-            baseline_ss = calculate_taxable_ss(baseline_trad, pension_income, ss, status)
-            baseline_taxable = max(0, baseline_trad + pension_income + baseline_ss - deduction)
-            baseline_taxes = calculate_tax(baseline_taxable, brackets)
-            baseline_magi = baseline_trad + pension_income + baseline_ss
-            baseline_medicare = calculate_medicare_premium(baseline_magi, status, age) if include_medicare else 0
-
-            # Baseline penalty check
-            baseline_shortfall = max(0, rmd - (baseline_trad + qcd_amount))
-            baseline_penalty = baseline_shortfall * 0.25
-            baseline_net = (baseline_trad + ss + pension_income + roth_withdrawal) - (baseline_taxes + baseline_medicare + baseline_penalty)
-
-            if net_income > baseline_net:
-                roth_conversion = net_income - baseline_net
-                roth += roth_conversion
-                net_income -= baseline_net
+            baseline_extra = min(extra_trad, max(0, gross_withdrawal_target - qcd_amount - rmd_taken))
+            _, b_tax, b_med = get_tax_data(rmd_taken + baseline_extra)
+            b_net = (rmd_taken + baseline_extra + ss + pension_income + roth_wd) - (b_tax + b_med + penalty)
+            if net_income > b_net:
+                roth_conv = net_income - b_net
+                roth += roth_conv
+                net_income -= roth_conv
 
         prev_trad = trad
 
@@ -283,9 +248,9 @@ def simulate_retirement(
             "Filing Status": status,
             "Social Security": ss,
             "Pension": pension_income,
-            "Traditional Withdrawal": total_trad,
-            "Roth Withdrawal": roth_withdrawal,
-            "Roth Conversion": roth_conversion,
+            "Taxable Trad W/D": current_trad_wd,
+            "Roth Withdrawal": roth_wd,
+            "Roth Conversion": roth_conv,
             "QCD Amount": qcd_amount,
             "Traditional Balance": trad,
             "Roth Balance": roth,
@@ -294,7 +259,8 @@ def simulate_retirement(
             "Taxable Income": taxable_income,
             "Taxes": taxes,
             "Medicare Cost": medicare,
-            "Net Income": net_income
+            "Net Income": net_income,
+            "Total Outflow": current_trad_wd + roth_wd + qcd_amount
         })
 
     return results
@@ -302,32 +268,11 @@ def simulate_retirement(
 
 if __name__ == "__main__":
     test_params = {
-        "start_age": 65,
-        "end_age": 95,
-        "spouse_death_age": 85,
-        "initial_roth_balance": 200000,
-        "initial_trad_balance": 1500000,
-        "growth_rate": 0.05,
-        "married_ss_income": 40000,
-        "single_ss_income": 25000,
-        "pension_income": 0,
-        "withdrawal_rate": 0.12
+        "start_age": 65, "end_age": 95, "spouse_death_age": 85,
+        "initial_roth_balance": 200000, "initial_trad_balance": 1500000,
+        "growth_rate": 0.05, "married_ss_income": 40000,
+        "single_ss_income": 25000, "pension_income": 0, "withdrawal_rate": 0.12
     }
-
-    print("Running Retirement Simulation...")
-    print("-" * 40)
-
     for strat in ["A", "B"]:
         results = simulate_retirement(**test_params, strategy=strat)
-        total_tax = sum(r["Taxes"] for r in results)
-        total_medicare = sum(r["Medicare Cost"] for r in results)
-        total_conversions = sum(r["Roth Conversion"] for r in results)
-        ending_bal = results[-1]["Roth Balance"] + results[-1]["Traditional Balance"]
-
-        strategy_name = "Stop at 22%" if strat == "A" else "Stop at 24%"
-        print(f"Scenario {strat} ({strategy_name}):")
-        print(f"  Total Taxes:       ${total_tax:,.2f}")
-        print(f"  Total Medicare:    ${total_medicare:,.2f}")
-        print(f"  Total Conversions: ${total_conversions:,.2f}")
-        print(f"  Ending Balance:    ${ending_bal:,.2f}")
-        print("-" * 40)
+        print(f"Strategy {strat}: Ending Balance ${results[-1]['Roth Balance'] + results[-1]['Traditional Balance']:,.2f}")
