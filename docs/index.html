@@ -726,6 +726,7 @@
             
             try {
                 pyodide = await loadPyodide();
+                window.pyodide = pyodide; // Exposed for testing
                 // No need for numpy, pandas, or matplotlib in JS-only visualization
                 loadingMsg.style.display = 'none';
             } catch (error) {
