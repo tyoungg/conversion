@@ -170,6 +170,7 @@ def simulate_retirement(
     include_rmd=True,
     include_medicare=True,
     fixed_roth_withdrawal=0,
+    use_roth_buffer=True,
     enable_roth_conversion=True,
     qcd_percentage=0,
     # New SS Parameters
@@ -179,7 +180,8 @@ def simulate_retirement(
     claim_age_primary=67,
     ss_spouse_fra=1500,
     birth_year_spouse=1962,
-    claim_age_spouse=67
+    claim_age_spouse=67,
+    **kwargs
 ):
     # 2025 Tax Brackets
     married_brackets = [
@@ -210,13 +212,57 @@ def simulate_retirement(
     # Gross Withdrawal Target
     gross_withdrawal_target = (initial_trad_balance + initial_roth_balance) * withdrawal_rate
 
-    birth_year = 2025 - start_age
-    rmd_start_age = 75 if birth_year >= 1960 else 73
+    # Calculate individual SS benefits once
+    benefit_primary = calculate_adjusted_ss(ss_primary_fra, claim_age_primary, birth_year_primary)
+
+    if filing_status == "married":
+        benefit_spouse_own = calculate_adjusted_ss(ss_spouse_fra, claim_age_spouse, birth_year_spouse)
+        # Spousal benefit: up to 50% of primary's FRA benefit
+        # (Reduced if spouse claims before their own FRA)
+        potential_spousal = ss_primary_fra * 0.5
+        # Reduction factor for early spousal claiming (simplified)
+        spouse_fra_y, spouse_fra_m = get_fra(birth_year_spouse)
+        spouse_fra_total = spouse_fra_y * 12 + spouse_fra_m
+        spouse_claim_total = claim_age_spouse * 12
+        if spouse_claim_total < spouse_fra_total:
+            months_early = spouse_fra_total - spouse_claim_total
+            # Spousal reduction is 25/36 of 1% for first 36 months, then 5/12 of 1%
+            if months_early <= 36:
+                red = months_early * (25/36 / 100)
+            else:
+                red = (36 * (25/36 / 100)) + ((months_early - 36) * (5/12 / 100))
+            potential_spousal *= (1 - red)
+
+        benefit_spouse = max(benefit_spouse_own, potential_spousal)
+    else:
+        benefit_spouse = 0
+
+    # SECURE 2.0 RMD Age Logic
+    current_birth_year = 2025 - start_age
+    rmd_start_age = 75 if current_birth_year >= 1960 else 73
 
     for age in range(start_age, end_age + 1):
-        married = age <= spouse_death_age
+        married = age <= spouse_death_age and filing_status == "married"
         status = "married" if married else "single"
-        ss = married_ss_income if married else single_ss_income
+
+        # Determine SS income for this age
+        current_ss = 0
+        if age >= claim_age_primary:
+            current_ss += benefit_primary * 12
+
+        if filing_status == "married":
+            # Spouse age = Primary age - (Spouse Birth Year - Primary Birth Year)
+            # Example: Primary 1960, Spouse 1962. At Primary age 65, Spouse is 63.
+            # 65 - (1962 - 1960) = 63. Correct.
+            spouse_age = age - (birth_year_spouse - birth_year_primary)
+            if married:
+                if spouse_age >= claim_age_spouse:
+                    current_ss += benefit_spouse * 12
+            else:
+                # Survivor benefit: Higher of primary or spouse
+                current_ss = max(benefit_primary, benefit_spouse) * 12
+
+        ss = current_ss
         brackets = married_brackets if married else single_brackets
 
         if married:
@@ -259,7 +305,11 @@ def simulate_retirement(
 
         # 4. Roth Withdrawal (Buffer if Trad was insufficient for target)
         remaining_target = max(0, gross_withdrawal_target - qcd_amount - current_trad_wd)
-        roth_wd = min(roth, fixed_roth_withdrawal + remaining_target)
+        roth_wd = fixed_roth_withdrawal
+        if use_roth_buffer:
+            roth_wd += remaining_target
+
+        roth_wd = min(roth, roth_wd)
         roth -= roth_wd
 
         # 5. Conversion Logic (Top off bracket if enabled)
@@ -328,8 +378,8 @@ if __name__ == "__main__":
     test_params = {
         "start_age": 65, "end_age": 95, "spouse_death_age": 85,
         "initial_roth_balance": 200000, "initial_trad_balance": 1500000,
-        "growth_rate": 0.05, "married_ss_income": 40000,
-        "single_ss_income": 25000, "pension_income": 0, "withdrawal_rate": 0.12
+        "growth_rate": 0.05, "pension_income": 0, "withdrawal_rate": 0.12,
+        "ss_primary_fra": 3000, "birth_year_primary": 1960, "claim_age_primary": 67
     }
     for strat in ["A", "B"]:
         results = simulate_retirement(**test_params, strategy=strat)
