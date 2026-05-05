@@ -5,6 +5,9 @@ test('Retirement calculator simulation runs and displays comparison results', as
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
 
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
+
   // Fill out the form
   await page.fill('#startAge', '65');
   await page.fill('#endAge', '91');
@@ -47,6 +50,9 @@ test('Retirement calculator simulation runs and displays comparison results', as
 test('Form submits on Enter key', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
+
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
 
   // Focus an input and press Enter
   await page.focus('#startAge');
