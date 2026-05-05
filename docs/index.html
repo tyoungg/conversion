@@ -421,10 +421,61 @@
             display: block;
         }
 
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 95%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .modal-content p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+            color: #555;
+            text-align: left;
+            font-size: 0.95em;
+        }
+
+        .modal-content button {
+            margin-top: 20px;
+            width: auto;
+            padding: 12px 40px;
+        }
+
         .chart-container {
             position: relative;
             height: 300px;
             margin-top: 20px;
+        }
+
+        footer {
+            padding: 20px 40px;
+            text-align: center;
+            font-size: 0.85em;
+            color: #666;
+            border-top: 1px solid #eee;
         }
     </style>
 </head>
@@ -716,6 +767,22 @@
                     👈 Fill in your retirement details and click "Calculate Scenarios" to see results
                 </div>
             </div>
+        </div>
+        <footer>
+            <p>This tool is for educational purposes only and does not provide financial, tax, or legal advice. Results are estimates based on assumptions and may not reflect actual outcomes. Use at your own risk.</p>
+            <p style="margin-top: 10px;">If this tool has been useful to you and you’d like to say thanks, you can support it here: <a href="https://paypal.me/tsy19" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 600;">https://paypal.me/tsy19</a>. I appreciate it!</p>
+        </footer>
+    </div>
+
+    <div id="disclaimerModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2>Important Disclaimer</h2>
+            <p>This tool is provided for educational and informational purposes only. It does not constitute financial, investment, tax, or legal advice.</p>
+            <p>The projections and outputs are based on assumptions and simplified models of complex rules (including tax law, Social Security, Medicare, and Required Minimum Distributions). Actual results may differ significantly.</p>
+            <p>This tool does not account for your full financial situation and should not be relied upon to make financial decisions.</p>
+            <p>By continuing, you acknowledge that you are solely responsible for your decisions and that the creator of this tool is not liable for any outcomes resulting from its use.</p>
+            <p>Please consult a qualified financial, tax, or legal professional before making decisions.</p>
+            <button id="closeDisclaimer">I Understand</button>
         </div>
     </div>
 
@@ -1109,6 +1176,19 @@ output
                 // Format with commas
                 this.value = parseInt(val).toLocaleString('en-US');
             });
+        });
+
+        // Disclaimer Modal Logic
+        const modal = document.getElementById('disclaimerModal');
+        const closeBtn = document.getElementById('closeDisclaimer');
+
+        if (!localStorage.getItem('disclaimerAccepted')) {
+            modal.style.display = 'flex';
+        }
+
+        closeBtn.addEventListener('click', () => {
+            localStorage.setItem('disclaimerAccepted', 'true');
+            modal.style.display = 'none';
         });
 
         // Initialize Pyodide on page load

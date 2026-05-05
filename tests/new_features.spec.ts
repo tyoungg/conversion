@@ -4,6 +4,9 @@ test('Dynamic Social Security Claiming Age', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
 
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
+
   await page.selectOption('#filingStatus', 'single');
   await page.fill('#ssPrimaryFRA', '3,000');
   await page.fill('#birthYearPrimary', '1960');
@@ -23,6 +26,9 @@ test('Dynamic Social Security Claiming Age', async ({ page }) => {
 test('Spousal Benefit Higher than Own', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
+
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
 
   await page.fill('#ssPrimaryFRA', '3,000');
   await page.fill('#claimAgePrimary', '67');
@@ -44,6 +50,9 @@ test('Drain Traditional First logic', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
 
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
+
   await page.fill('#initialTrad', '1,000,000');
   await page.fill('#initialRoth', '1,000,000');
   await page.fill('#withdrawalRate', '5');
@@ -63,6 +72,9 @@ test('Drain Traditional First logic', async ({ page }) => {
 test('Robustness to legacy arguments', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
+
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
 
   const result = await page.evaluate(async () => {
     // @ts-ignore
@@ -102,6 +114,9 @@ test('Optional Roth Buffer Toggle', async ({ page }) => {
   await page.goto('http://localhost:8080/index.html');
   await page.waitForSelector("#loadingMessage", { state: "hidden", timeout: 30000 });
 
+  // Accept disclaimer
+  await page.click('#closeDisclaimer');
+
   // 1M Trad, 1M Roth. 5% = 100k target.
   await page.fill('#initialTrad', '1,000,000');
   await page.fill('#initialRoth', '1,000,000');
@@ -124,7 +139,10 @@ test('Optional Roth Buffer Toggle', async ({ page }) => {
   await page.fill('#initialTrad', '20,000');
   await page.uncheck('#useRothBuffer');
   await page.click('button:has-text("Calculate Scenarios")');
+
+  // Wait for the table to update
   await expect(page.locator('#resultsContent')).toBeVisible({ timeout: 20000 });
+  await page.click('button:has-text("Year-by-Year")');
 
   const outflowDisabled = await page.locator('#tableBody tr:first-child td:nth-child(17)').innerText();
   // Should be ~20k (only Trad)
