@@ -109,29 +109,41 @@ def calculate_taxable_ss(withdrawal_trad, other_income, ss_income, filing_status
 # -----------------------------
 # MEDICARE + RMD
 # -----------------------------
-def calculate_medicare_premium(magi, filing_status, age):
+def calculate_medicare_premium(magi, filing_status, age_primary, age_spouse=None):
     """
-    Calculates annual Medicare Part B premiums including IRMAA based on 2025 rates.
+    Calculates annual Medicare Part B and Part D premiums including IRMAA based on 2026 rates.
+    Includes an estimated $40/mo base Part D premium.
     """
-    if age < 65:
-        return 0
-
     if filing_status == "married":
-        brackets = [212000, 266000, 334000, 400000, 750000]
+        brackets = [218000, 274000, 342000, 410000, 750000]
     else:
-        brackets = [106000, 133000, 167000, 200000, 500000]
+        brackets = [109000, 137000, 171000, 205000, 500000]
 
-    premiums = [185.00, 259.00, 370.00, 480.90, 591.90, 628.90]
+    # 2026 Part B: 202.90, 284.10, 405.80, 527.50, 649.20, 680.90
+    # 2026 Part D IRMAA: 0, 14.50, 37.50, 60.40, 83.30, 91.00
+    # Base Part D (estimate): 40.00
+    b_premiums = [202.90, 284.10, 405.80, 527.50, 649.20, 680.90]
+    d_surcharges = [0.00, 14.50, 37.50, 60.40, 83.30, 91.00]
+    d_base = 40.00
 
-    selected_premium = premiums[-1]
+    idx = 5  # Default to highest
     for i, limit in enumerate(brackets):
         is_last_bracket = (i == len(brackets) - 1)
         if (magi < limit if is_last_bracket else magi <= limit):
-            selected_premium = premiums[i]
+            idx = i
             break
 
-    annual_premium = selected_premium * 12
-    return annual_premium * 2 if filing_status == "married" else annual_premium
+    monthly_per_person = b_premiums[idx] + d_surcharges[idx] + d_base
+    total_annual = 0
+
+    if age_primary >= 65:
+        total_annual += monthly_per_person * 12
+
+    if filing_status == "married" and age_spouse is not None:
+        if age_spouse >= 65:
+            total_annual += monthly_per_person * 12
+
+    return total_annual
 
 
 def calculate_rmd(balance, age, rmd_start_age=73):
@@ -242,8 +254,14 @@ def simulate_retirement(
     rmd_start_age = 75 if current_birth_year >= 1960 else 73
 
     for age in range(start_age, end_age + 1):
-        married = age <= spouse_death_age and filing_status == "married"
-        status = "married" if married else "single"
+        # Determine current filing status and spouse age
+        is_married_now = (filing_status == "married" and age <= spouse_death_age)
+        current_status = "married" if is_married_now else "single"
+
+        spouse_age = None
+        if filing_status == "married":
+            # Spouse age = Primary age - (Spouse Birth Year - Primary Birth Year)
+            spouse_age = age - (birth_year_spouse - birth_year_primary)
 
         # Determine SS income for this age
         current_ss = 0
@@ -251,11 +269,7 @@ def simulate_retirement(
             current_ss += benefit_primary * 12
 
         if filing_status == "married":
-            # Spouse age = Primary age - (Spouse Birth Year - Primary Birth Year)
-            # Example: Primary 1960, Spouse 1962. At Primary age 65, Spouse is 63.
-            # 65 - (1962 - 1960) = 63. Correct.
-            spouse_age = age - (birth_year_spouse - birth_year_primary)
-            if married:
+            if is_married_now:
                 if spouse_age >= claim_age_spouse:
                     current_ss += benefit_spouse * 12
             else:
@@ -263,9 +277,9 @@ def simulate_retirement(
                 current_ss = max(benefit_primary, benefit_spouse) * 12
 
         ss = current_ss
-        brackets = married_brackets if married else single_brackets
+        brackets = married_brackets if is_married_now else single_brackets
 
-        if married:
+        if is_married_now:
             deduction = 30000 + (3200 if age >= 65 else 0)
         else:
             deduction = 15000 + (2000 if age >= 65 else 0)
@@ -279,7 +293,7 @@ def simulate_retirement(
         # 1. QCD
         qcd_amount = 0
         if age >= 70:
-            qcd_limit = 216000 if status == "married" else 108000
+            qcd_limit = 216000 if current_status == "married" else 108000
             qcd_amount = min(trad, qcd_limit, trad * qcd_percentage)
             trad -= qcd_amount
 
@@ -290,12 +304,12 @@ def simulate_retirement(
         trad -= rmd_taken
 
         def get_tax_data(test_trad_total):
-            t_ss = calculate_taxable_ss(test_trad_total, pension_income, ss, status)
+            t_ss = calculate_taxable_ss(test_trad_total, pension_income, ss, current_status)
             t_inc = max(0, test_trad_total + pension_income + t_ss - deduction)
             t_tax = calculate_tax(t_inc, brackets)
             t_magi = test_trad_total + pension_income + t_ss
-            t_med = calculate_medicare_premium(t_magi, status, age) if include_medicare else 0
-            return t_inc, t_tax, t_med
+            t_med = calculate_medicare_premium(t_magi, current_status, age, spouse_age) if include_medicare else 0
+            return t_inc, t_tax, t_med, t_magi
 
         # 3. Withdrawal Logic: Prioritize Traditional to meet target
         remaining_target = max(0, gross_withdrawal_target - qcd_amount - rmd_taken)
@@ -319,7 +333,7 @@ def simulate_retirement(
             low, high = 0, trad
             for _ in range(40):
                 mid = (low + high) / 2
-                t_inc, _, _ = get_tax_data(current_trad_wd + mid)
+                t_inc, _, _, _ = get_tax_data(current_trad_wd + mid)
                 if t_inc <= bracket_limit - 1:
                     best_surplus = mid
                     low = mid
@@ -327,8 +341,8 @@ def simulate_retirement(
                     high = mid
 
             if best_surplus > 0:
-                _, taxes_now, med_now = get_tax_data(current_trad_wd + best_surplus)
-                _, taxes_base, med_base = get_tax_data(current_trad_wd)
+                _, taxes_now, med_now, _ = get_tax_data(current_trad_wd + best_surplus)
+                _, taxes_base, med_base, _ = get_tax_data(current_trad_wd)
 
                 shortfall_now = max(0, rmd - (current_trad_wd + best_surplus + qcd_amount))
                 shortfall_base = max(0, rmd - (current_trad_wd + qcd_amount))
@@ -344,7 +358,7 @@ def simulate_retirement(
                     roth += roth_conv
 
         total_withdrawn_this_year = current_trad_wd + (best_surplus if roth_conv > 0 else 0)
-        taxable_income, taxes, medicare = get_tax_data(total_withdrawn_this_year)
+        taxable_income, taxes, medicare, magi = get_tax_data(total_withdrawn_this_year)
         shortfall = max(0, rmd - (total_withdrawn_this_year + qcd_amount))
         penalty = shortfall * 0.25
         net_income = (total_withdrawn_this_year + ss + pension_income + roth_wd) - (taxes + medicare + penalty + roth_conv)
@@ -353,7 +367,7 @@ def simulate_retirement(
 
         results.append({
             "Age": age,
-            "Filing Status": status,
+            "Filing Status": current_status,
             "Social Security": ss,
             "Pension": pension_income,
             "Taxable Trad W/D": total_withdrawn_this_year,
@@ -365,6 +379,7 @@ def simulate_retirement(
             "RMD Required": rmd,
             "RMD Penalty": penalty,
             "Taxable Income": taxable_income,
+            "MAGI": magi,
             "Taxes": taxes,
             "Medicare Cost": medicare,
             "Net Income": net_income,
