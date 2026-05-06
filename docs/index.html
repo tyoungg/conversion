@@ -496,7 +496,8 @@
                         <li><strong>Enable Roth Conversions:</strong> If checked, the tool fills the 22% (A) or 24% (B) brackets with conversions when income is below the limit. <em>Note: If this is ON, your taxes may remain high even with QCDs because the "saved" tax room is immediately filled with Roth conversions.</em></li>
                         <li><strong>QCD Percentage:</strong> For ages 70.5+, specifies the % of your Traditional IRA to donate to charity. <strong>QCDs are taken first from your Withdrawal Target</strong>, reducing the taxable portion of your withdrawal and lowering your taxes.</li>
                         <li><strong>Spouse Death Age:</strong> Simulates the "Widow's Penalty" by switching to Single filing status and adjusted Social Security in that year.</li>
-                        <li><strong>Taxable Income:</strong> This is your <strong>Net Taxable Income</strong> after subtracting the 2025 Standard Deduction ($15k Single / $30k Married + 65+ additions) and applying tiered Social Security taxation. <em>Formula: (Taxable Trad W/D) + (Pension) + (Taxable SS) - (Deduction).</em></li>
+                        <li><strong>MAGI:</strong> Modified Adjusted Gross Income. Used for Medicare premium (IRMAA) calculations. <em>Formula: (Taxable Trad W/D) + (Pension) + (Taxable SS).</em></li>
+                        <li><strong>Taxable Income:</strong> This is your <strong>Net Taxable Income</strong> after subtracting the 2026 Standard Deduction and applying tiered Social Security taxation. <em>Formula: (MAGI) - (Deduction).</em></li>
                     </ul>
                 </div>
                 <h2>Plan Your Retirement</h2>
@@ -730,8 +731,16 @@
                     </div>
 
                     <div id="details" class="tab-content">
-                        <p style="color: #666; margin-bottom: 5px;">Scenario A - Year-by-Year Breakdown:</p>
-                        <p style="color: #666; font-size: 0.8em; margin-bottom: 15px;"><em>Formula: Taxable Income = Taxable Trad W/D + Pension + Taxable SS - Standard Deduction</em></p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <p style="color: #666; margin-bottom: 5px;" id="detailsTitle">Scenario A - Year-by-Year Breakdown:</p>
+                                <p style="color: #666; font-size: 0.8em;"><em>Formula: Taxable Income = Taxable Trad W/D + Pension + Taxable SS - Standard Deduction</em></p>
+                            </div>
+                            <div class="scenario-toggle" style="display: flex; gap: 5px;">
+                                <button onclick="toggleDetailScenario('A')" id="btnShowA" class="tab-button active" style="width: auto; padding: 5px 15px; font-size: 0.85em;">Scenario A</button>
+                                <button onclick="toggleDetailScenario('B')" id="btnShowB" class="tab-button" style="width: auto; padding: 5px 15px; font-size: 0.85em;">Scenario B</button>
+                            </div>
+                        </div>
                         <div class="scroll-hint">↔ Scroll for more</div>
                         <div class="data-table-container">
                             <table class="data-table" id="dataTable">
@@ -749,6 +758,7 @@
                                         <th>Annual RMD</th>
                                         <th>Annual QCD</th>
                                         <th>Annual Penalty</th>
+                                        <th>MAGI</th>
                                         <th>Taxable Income</th>
                                         <th>Annual Taxes</th>
                                         <th>Annual Medicare</th>
@@ -789,6 +799,8 @@
     <script>
         let pyodide = null;
         let chart = null;
+        let lastOutput = null;
+        let currentDetailScenario = 'A';
 
         async function initPyodide() {
             if (pyodide) return;
@@ -981,7 +993,48 @@ output
             }
         }
 
+        function toggleDetailScenario(scenario) {
+            currentDetailScenario = scenario;
+            document.getElementById('btnShowA').classList.toggle('active', scenario === 'A');
+            document.getElementById('btnShowB').classList.toggle('active', scenario === 'B');
+            document.getElementById('detailsTitle').textContent = `Scenario ${scenario} - Year-by-Year Breakdown:`;
+
+            if (lastOutput) {
+                renderTable(scenario === 'A' ? lastOutput.resultsA : lastOutput.resultsB);
+            }
+        }
+
+        function renderTable(results) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            results.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.Age}</td>
+                    <td>${row["Filing Status"]}</td>
+                    <td>${formatCurrency(row["Social Security"])}</td>
+                    <td>${formatCurrency(row["Pension"])}</td>
+                    <td>${formatCurrency(row["Taxable Trad W/D"])}</td>
+                    <td>${formatCurrency(row["Roth Withdrawal"])}</td>
+                    <td>${formatCurrency(row["Roth Conversion"])}</td>
+                    <td>${formatCurrency(row["Traditional Balance"])}</td>
+                    <td>${formatCurrency(row["Roth Balance"])}</td>
+                    <td>${formatCurrency(row["RMD Required"])}</td>
+                    <td>${formatCurrency(row["QCD Amount"])}</td>
+                    <td>${formatCurrency(row["RMD Penalty"])}</td>
+                    <td>${formatCurrency(row["MAGI"])}</td>
+                    <td>${formatCurrency(row["Taxable Income"])}</td>
+                    <td>${formatCurrency(row["Taxes"])}</td>
+                    <td>${formatCurrency(row["Medicare Cost"])}</td>
+                    <td>${formatCurrency(row["Net Income"])}</td>
+                    <td>${formatCurrency(row["Total Outflow"])}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
         function displayResults(output) {
+            lastOutput = output;
             const a = output.scenarioA;
             const b = output.scenarioB;
             const resultsA = output.resultsA;
@@ -1023,32 +1076,8 @@ output
             setDiff('qcdDiff', a.qcds - b.qcds, true);
             setDiff('balanceDiff', a.balance - b.balance, true);
 
-            // Update table with Scenario A data
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
-            resultsA.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${row.Age}</td>
-                    <td>${row["Filing Status"]}</td>
-                    <td>${formatCurrency(row["Social Security"])}</td>
-                    <td>${formatCurrency(row["Pension"])}</td>
-                    <td>${formatCurrency(row["Taxable Trad W/D"])}</td>
-                    <td>${formatCurrency(row["Roth Withdrawal"])}</td>
-                    <td>${formatCurrency(row["Roth Conversion"])}</td>
-                    <td>${formatCurrency(row["Traditional Balance"])}</td>
-                    <td>${formatCurrency(row["Roth Balance"])}</td>
-                    <td>${formatCurrency(row["RMD Required"])}</td>
-                    <td>${formatCurrency(row["QCD Amount"])}</td>
-                    <td>${formatCurrency(row["RMD Penalty"])}</td>
-                    <td>${formatCurrency(row["Taxable Income"])}</td>
-                    <td>${formatCurrency(row["Taxes"])}</td>
-                    <td>${formatCurrency(row["Medicare Cost"])}</td>
-                    <td>${formatCurrency(row["Net Income"])}</td>
-                    <td>${formatCurrency(row["Total Outflow"])}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            // Update table
+            renderTable(currentDetailScenario === 'A' ? resultsA : resultsB);
 
             // Update Charts
             updateCharts(resultsA, resultsB);

@@ -130,7 +130,7 @@ test('Optional Roth Buffer Toggle', async ({ page }) => {
   await page.click('button:has-text("Year-by-Year")');
 
   // Withdrawal should be ~100k
-  const outflowEnabled = await page.locator('#tableBody tr:first-child td:nth-child(17)').innerText();
+  const outflowEnabled = await page.locator('#tableBody tr:first-child td:nth-child(18)').innerText();
   expect(parseFloat(outflowEnabled.replace(/[^0-9.-]+/g,""))).toBeCloseTo(100000, -2);
 
   // Case 2: Buffer DISABLED
@@ -144,7 +144,7 @@ test('Optional Roth Buffer Toggle', async ({ page }) => {
   await expect(page.locator('#resultsContent')).toBeVisible({ timeout: 20000 });
   await page.click('button:has-text("Year-by-Year")');
 
-  const outflowDisabled = await page.locator('#tableBody tr:first-child td:nth-child(17)').innerText();
+  const outflowDisabled = await page.locator('#tableBody tr:first-child td:nth-child(18)').innerText();
   // Should be ~20k (only Trad)
   expect(parseFloat(outflowDisabled.replace(/[^0-9.-]+/g,""))).toBeLessThan(30000);
 });
