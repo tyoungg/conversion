@@ -1,4 +1,4 @@
-# 💰 Retirement Tax Conversion Strategy Simulator (2025 Edition)
+# 💰 Retirement Tax Conversion Strategy Simulator (2026 Edition)
 
 A high-fidelity retirement withdrawal and tax optimization engine. This tool helps retirees compare different withdrawal strategies to minimize lifetime taxes, maximize ending balances, and understand the impact of the "Widow's Penalty."
 
@@ -37,9 +37,9 @@ The author assumes no liability for any losses or damages arising from the use o
     - Automatically applies **Additional Standard Deductions** for taxpayers age 65 and older ($2,000 for Single, $1,600 per person for Married).
     - Models the **"Widow's Penalty"**: Transitioning from Married to Single filing status (brackets, deductions, and SS benefits) when a spouse passes.
 - **Medicare IRMAA Modeling:**
-    - Calculates **2025** Medicare Part B premiums ($185.00 base).
-    - Factors in IRMAA surcharges based on MAGI (using 2025 tiers).
-    - Correctly doubles premiums for married couples.
+    - Calculates **2026** Medicare Part B and **Part D** premiums.
+    - Factors in IRMAA surcharges based on MAGI (using **2026** tiers).
+    - Correctly handles individual enrollment ages (65+) for spouses with different birth years.
 - **Account Buffering:**
     - Applies **QCDs** first (if configured and eligible).
     - Fulfills **RMDs** (satisfied dollar-for-dollar by QCDs).
@@ -70,13 +70,15 @@ The author assumes no liability for any losses or damages arising from the use o
     4.  **Roth IRA Buffer**: Used only if Traditional assets are exhausted or for specific `Fixed Roth Withdrawals`.
     5.  **Roth Conversions (Optional)**: If enabled, "tops off" the 22% or 24% bracket *after* the spending goal is met.
 
-## 📊 2025 Tax Assumptions
+## 📊 2026 Tax & Medicare Assumptions
 
 - **Standard Deduction (65+):**
-    - Married: $34,700 ($31,500 + $3,200)
-    - Single: $17,750 ($15,750 + $2,000)
-- **Medicare Part B (Base):** $185.00/month per person.
+    - Married: $33,200 ($30,000 + $3,200)
+    - Single: $17,000 ($15,000 + $2,000)
+- **Medicare Part B (Base):** $202.90/month per person.
+- **Medicare Part D (Estimated Base):** $40.00/month per person.
 - **Social Security:** Taxable portion calculated using Provisional Income thresholds ($25k/$34k for Single, $32k/$44k for Married).
+- **IRMAA Brackets:** Updated for 2026 ($109k Single / $218k Married).
 
 ## 🚩 Local Development
 
