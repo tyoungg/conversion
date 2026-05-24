@@ -391,10 +391,11 @@ def simulate_retirement(
 
 if __name__ == "__main__":
     test_params = {
-        "start_age": 65, "end_age": 95, "spouse_death_age": 85,
-        "initial_roth_balance": 200000, "initial_trad_balance": 1500000,
-        "growth_rate": 0.05, "pension_income": 0, "withdrawal_rate": 0.12,
-        "ss_primary_fra": 3000, "birth_year_primary": 1960, "claim_age_primary": 67
+        "start_age": 65, "end_age": 91, "spouse_death_age": 79,
+        "initial_roth_balance": 1500000, "initial_trad_balance": 2000000,
+        "growth_rate": 0.055, "pension_income": 30000, "withdrawal_rate": 0.05,
+        "ss_primary_fra": 3000, "birth_year_primary": 1960, "claim_age_primary": 67,
+        "ss_spouse_fra": 1500, "birth_year_spouse": 1962, "claim_age_spouse": 67
     }
     for strat in ["A", "B"]:
         results = simulate_retirement(**test_params, strategy=strat)
