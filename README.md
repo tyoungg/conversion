@@ -82,7 +82,26 @@ The author assumes no liability for any losses or damages arising from the use o
 
 ## 🚩 Local Development
 
-Because the application fetches `conversion.py` dynamically, you must serve it via a local web server to avoid CORS/file-protocol errors:
+### Streamlit Application (Recommended for Cloud Deployment)
+
+The project includes a self-contained Streamlit application for easier deployment on platforms like Streamlit Cloud.
+
+**Prerequisites:**
+- Python 3.9+
+- pip
+
+**Running Locally:**
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the app
+streamlit run app.py
+```
+
+### Static Web Interface (Pyodide-based)
+
+The original web interface runs entirely in the browser using Pyodide. Because it fetches `conversion.py` dynamically, you must serve it via a local web server to avoid CORS/file-protocol errors:
 
 ```bash
 # Using Python
